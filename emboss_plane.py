@@ -1,18 +1,18 @@
-bl_info = {
-    "name": "Emboss plane",
-    "description": "Emboss and solidify a plane",
-    "author": "Coleman Krawczyk",
-    "version": (1, 2),
-    "blender": (2, 76, 0),
-    "location": "View3D > Tools > Mesh Edit",
-    "category": "Mesh",
-}
-
 import bpy
 import bmesh
 import math
 from mathutils import Vector
 from bpy.props import IntProperty, FloatProperty
+
+bl_info = {
+    "name": "Emboss plane",
+    "description": "Emboss and solidify a plane",
+    "author": "Coleman Krawczyk",
+    "version": (1, 3),
+    "blender": (2, 76, 0),
+    "location": "View3D > Tools > Mesh Edit",
+    "category": "Mesh",
+}
 
 
 def createBorderEdge(name, origin, length, width, height):
@@ -35,12 +35,16 @@ def createBorderEdge(name, origin, length, width, height):
         (0, 4, 5, 1),
         (3, 7, 6, 2),
     ]
-    me = bpy.data.meshes.new(name+'Mesh')
+    me = bpy.data.meshes.new(name + 'Mesh')
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.objects.link(ob)
     me.from_pydata(verts, [], faces)
     me.update()
     return ob
+
+
+def check_in_border(vert, lx, ly, object_location, border_width):
+    return (vert.co[1] < object_location[1] - (0.5 * lx) + border_width) or (vert.co[1] > object_location[1] + (0.5 * lx) - border_width) or (vert.co[0] < object_location[0] - (0.5 * ly) + border_width) or (vert.co[0] > object_location[0] + (0.5 * ly) - border_width)
 
 
 class EmbossPlane(bpy.types.Operator):
@@ -49,9 +53,11 @@ class EmbossPlane(bpy.types.Operator):
     bl_label = "Emboss and solidify a plane"
     bl_options = {'REGISTER', 'UNDO'}
 
-    B = IntProperty(name="Number of faces", default=1000, min=0, description="Number of faces across the top of the plane")
-    Height = FloatProperty(name="Thickness", default=6, unit="LENGTH", description="Thickness of full model")
-    Base_height = FloatProperty(name="Base Thickness", default=3, min=0.1, unit="LENGTH", description="Thickness of the model's base")
+    # B = IntProperty(name="Number of faces", default=1000, min=0, description="Number of faces across the top of the plane")
+    Fpu = FloatProperty(name="Faces per unit", default=5, min=0, description="Number of faces per unit length across the top of the plane")
+    Emboss_height = FloatProperty(name="Emboss thickness", default=3, min=0.1, unit="LENGTH", description="The Emboss height for the model")
+    # Height = FloatProperty(name="Thickness", default=6, unit="LENGTH", description="Thickness of full model")
+    Base_height = FloatProperty(name="Base Thickness", default=1, min=0.1, unit="LENGTH", description="Thickness of the model's base")
     Border_width = FloatProperty(name="Border width", default=3, min=0.1, unit="LENGTH", description="Width of the border")
 
     def execute(self, context):
@@ -70,6 +76,7 @@ class EmbossPlane(bpy.types.Operator):
         ly = bm.edges[1].calc_length()
 
         # make border
+        '''
         all_objects = bpy.data.objects.keys()
         bpy.ops.object.editmode_toggle()
         object.select = False
@@ -86,7 +93,7 @@ class EmbossPlane(bpy.types.Operator):
         createBorderEdge('top', origin, ly, self.Border_width, self.Height)
         origin = object.location - Vector((ly / 2, (lx / 2) + 2.6 * self.Border_width, self.Base_height))
         createBorderEdge('bottom', origin, ly, self.Border_width, self.Height)
-        origin = object.location - Vector((ly / 2,  (lx / 2) + 3.9 * self.Border_width, self.Base_height))
+        origin = object.location - Vector((ly / 2, (lx / 2) + 3.9 * self.Border_width, self.Base_height))
         createBorderEdge('left', origin, lx, self.Border_width, self.Height)
         origin = object.location - Vector((ly / 2, (lx / 2) + 5.2 * self.Border_width, self.Base_height))
         createBorderEdge('right', origin, lx, self.Border_width, self.Height)
@@ -99,11 +106,13 @@ class EmbossPlane(bpy.types.Operator):
         if hasattr(bm.verts, "ensure_lookup_table"):
             bm.verts.ensure_lookup_table()
             bm.edges.ensure_lookup_table()
-
+        '''
         # get number of cuts to make
-        A = lx/ly
-        nx = round(math.sqrt(A*self.B)) - 1
-        ny = round(math.sqrt(self.B/A)) - 1
+        B = lx * ly * self.Fpu**2
+        A = lx / ly
+        nx = round(math.sqrt(A * B)) - 1
+        ny = round(math.sqrt(B / A)) - 1
+        self.report({'INFO'}, '{0} total faces'.format(nx * ny))
 
         # make loop cuts
         bpy.context.area.type = 'VIEW_3D'
@@ -112,8 +121,9 @@ class EmbossPlane(bpy.types.Operator):
         bpy.ops.mesh.select_all(action='TOGGLE')
 
         # make vertex groups
-        bound = [v.index for v in bm.verts if v.is_boundary]
-        face = [v.index for v in bm.verts if not v.is_boundary]
+        # use check_in_border here
+        bound = [v.index for v in bm.verts if check_in_border(v, lx, ly, object.location, self.Border_width)]
+        face = [v.index for v in bm.verts if not check_in_border(v, lx, ly, object.location, self.Border_width)]
         vgk = object.vertex_groups.keys()
         if 'boundary' not in vgk:
             object.vertex_groups.new('boundary')
@@ -129,7 +139,7 @@ class EmbossPlane(bpy.types.Operator):
         if hasattr(bm.verts, "ensure_lookup_table"):
             bm.verts.ensure_lookup_table()
             bm.edges.ensure_lookup_table()
-        extrude_normal = bm.verts[0].normal * -1 * self.Base_height
+        extrude_normal = bm.verts[0].normal * -1 * (self.Emboss_height + self.Base_height)
         bound_edges = [e for e in bm.edges if e.is_boundary]
         bound_edges_index = [e.index for e in bound_edges]
         bmesh.ops.extrude_edge_only(bm, edges=bound_edges)
@@ -158,15 +168,15 @@ class EmbossPlane(bpy.types.Operator):
         if 'bump' not in mod:
             displace = object.modifiers.new(name='bump', type='DISPLACE')
             displace.texture = iTex
-            displace.mid_level = 0
+            displace.mid_level = 1
             displace.direction = 'Z'
             displace.vertex_group = 'face'
             displace.texture_coords = 'UV'
-            displace.strength = self.Height - self.Base_height
+            displace.strength = self.Emboss_height
             displace.show_in_editmode = True
         else:
             displace = object.modifiers['bump']
-            displace.strength = self.Height - self.Base_height
+            displace.strength = self.Emboss_height
         if 'smooth' not in mod:
             subsurf = object.modifiers.new(name='smooth', type='SUBSURF')
             subsurf.show_viewport = False
@@ -195,6 +205,7 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(EmbossPlane)
+
 
 if __name__ == "__main__":
     register()
