@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/79459697.svg)](https://zenodo.org/badge/latestdoi/79459697)
+
 # 3D-Printed-Galaxy-Software
 The software created and used for the Tactile Universe
 
