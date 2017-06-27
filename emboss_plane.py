@@ -43,22 +43,61 @@ def createBorderEdge(name, origin, length, width, height):
     return ob
 
 
-def check_in_border(vert, lx, ly, object_location, border_width):
-    return (vert.co[1] < object_location[1] - (0.5 * lx) + border_width) or (vert.co[1] > object_location[1] + (0.5 * lx) - border_width) or (vert.co[0] < object_location[0] - (0.5 * ly) + border_width) or (vert.co[0] > object_location[0] + (0.5 * ly) - border_width)
-
-
 class EmbossPlane(bpy.types.Operator):
     """Emboss Plane"""
     bl_idname = "object.emboss_plane"
     bl_label = "Emboss and solidify a plane"
     bl_options = {'REGISTER', 'UNDO'}
 
-    # B = IntProperty(name="Number of faces", default=1000, min=0, description="Number of faces across the top of the plane")
-    Fpu = FloatProperty(name="Faces per unit", default=5, min=0, description="Number of faces per unit length across the top of the plane")
+    Fpu = FloatProperty(name="Faces per unit", default=3, min=0, description="Number of faces per unit length across the top of the plane")
     Emboss_height = FloatProperty(name="Emboss thickness", default=3, min=0.1, unit="LENGTH", description="The Emboss height for the model")
-    # Height = FloatProperty(name="Thickness", default=6, unit="LENGTH", description="Thickness of full model")
     Base_height = FloatProperty(name="Base Thickness", default=1, min=0.1, unit="LENGTH", description="Thickness of the model's base")
     Border_width = FloatProperty(name="Border width", default=3, min=0.1, unit="LENGTH", description="Width of the border")
+
+    def get_weight(self, vert):
+        x, y, _ = vert.co
+        oy_minus = self.object_location[1] - (0.5 * self.ly)
+        oy_plus = self.object_location[1] + (0.5 * self.ly)
+        ox_minus = self.object_location[0] - (0.5 * self.lx)
+        ox_plus = self.object_location[0] + (0.5 * self.lx)
+        BE = self.Border_width + self.Emboss_height
+        if (y > oy_plus - self.Border_width) or \
+           (y < oy_minus + self.Border_width) or \
+           (x > ox_plus - self.Border_width) or \
+           (x < ox_minus + self.Border_width):
+            return 0
+        elif (y < oy_plus - BE) and \
+             (y > oy_minus + BE) and \
+             (x < ox_plus - BE) and \
+             (x > ox_minus + BE):
+            return 1
+        else:
+            y_high = (y <= oy_plus - self.Border_width) and (y >= oy_plus - BE)
+            y_high_weight = (oy_plus - self.Border_width - y) / self.Emboss_height
+            y_low = (y <= oy_minus + BE) and (y >= oy_minus + self.Border_width)
+            y_low_weight = (y - oy_minus - self.Border_width) / self.Emboss_height
+            x_high = (x <= ox_plus - self.Border_width) and (x >= ox_plus - BE)
+            x_high_weight = (ox_plus - self.Border_width - x) / self.Emboss_height
+            x_low = (x <= ox_minus + BE) and (x >= ox_minus + self.Border_width)
+            x_low_weight = (x - ox_minus - self.Border_width) / self.Emboss_height
+            if y_low:
+                if x_low:
+                    return min(y_low_weight, x_low_weight)
+                elif x_high:
+                    return min(y_low_weight, x_high_weight)
+                else:
+                    return y_low_weight
+            if y_high:
+                if x_low:
+                    return min(y_high_weight, x_low_weight)
+                elif x_high:
+                    return min(y_high_weight, x_high_weight)
+                else:
+                    return y_high_weight
+            elif x_high:
+                return x_high_weight
+            else:
+                return x_low_weight
 
     def execute(self, context):
         object = context.active_object
@@ -72,8 +111,8 @@ class EmbossPlane(bpy.types.Operator):
             bm.edges.ensure_lookup_table()
 
         # get length and width
-        lx = bm.edges[0].calc_length()
-        ly = bm.edges[1].calc_length()
+        self.ly = bm.edges[0].calc_length()
+        self.lx = bm.edges[1].calc_length()
 
         # make border
         '''
@@ -89,13 +128,13 @@ class EmbossPlane(bpy.types.Operator):
         if 'right' in all_objects:
             bpy.data.objects['right'].select = True
         bpy.ops.object.delete()
-        origin = object.location - Vector((ly / 2, (lx / 2) + 1.3 * self.Border_width, self.Base_height))
-        createBorderEdge('top', origin, ly, self.Border_width, self.Height)
-        origin = object.location - Vector((ly / 2, (lx / 2) + 2.6 * self.Border_width, self.Base_height))
-        createBorderEdge('bottom', origin, ly, self.Border_width, self.Height)
-        origin = object.location - Vector((ly / 2, (lx / 2) + 3.9 * self.Border_width, self.Base_height))
+        origin = object.location - Vector((self.lx / 2, (self.ly / 2) + 1.3 * self.Border_width, self.Base_height))
+        createBorderEdge('top', origin, lx, self.Border_width, self.Height)
+        origin = object.location - Vector((self.lx / 2, (self.ly / 2) + 2.6 * self.Border_width, self.Base_height))
+        createBorderEdge('bottom', origin, lx, self.Border_width, self.Height)
+        origin = object.location - Vector((self.lx / 2, (self.ly / 2) + 3.9 * self.Border_width, self.Base_height))
         createBorderEdge('left', origin, lx, self.Border_width, self.Height)
-        origin = object.location - Vector((ly / 2, (lx / 2) + 5.2 * self.Border_width, self.Base_height))
+        origin = object.location - Vector((self.lx / 2, (self.ly / 2) + 5.2 * self.Border_width, self.Base_height))
         createBorderEdge('right', origin, lx, self.Border_width, self.Height)
 
         object.select = True
@@ -108,8 +147,8 @@ class EmbossPlane(bpy.types.Operator):
             bm.edges.ensure_lookup_table()
         '''
         # get number of cuts to make
-        B = lx * ly * self.Fpu**2
-        A = lx / ly
+        B = self.lx * self.ly * self.Fpu**2
+        A = self.ly / self.lx
         nx = round(math.sqrt(A * B)) - 1
         ny = round(math.sqrt(B / A)) - 1
         self.report({'INFO'}, '{0} total faces'.format(nx * ny))
@@ -121,17 +160,15 @@ class EmbossPlane(bpy.types.Operator):
         bpy.ops.mesh.select_all(action='TOGGLE')
 
         # make vertex groups
-        # use check_in_border here
-        bound = [v.index for v in bm.verts if check_in_border(v, lx, ly, object.location, self.Border_width)]
-        face = [v.index for v in bm.verts if not check_in_border(v, lx, ly, object.location, self.Border_width)]
+        self.object_location = object.location
+        vertex_weights = [self.get_weight(v) for v in bm.verts]
+        verts = [v.index for v in bm.verts]
         vgk = object.vertex_groups.keys()
-        if 'boundary' not in vgk:
-            object.vertex_groups.new('boundary')
-        if 'face' not in vgk:
-            object.vertex_groups.new('face')
+        if 'emboss' not in vgk:
+            object.vertex_groups.new('emboss')
         bpy.ops.object.editmode_toggle()
-        object.vertex_groups['boundary'].add(bound, 1, 'REPLACE')
-        object.vertex_groups['face'].add(face, 1, 'REPLACE')
+        for v, w in zip(verts, vertex_weights):
+            object.vertex_groups['emboss'].add([v], w, 'REPLACE')
         bpy.ops.object.editmode_toggle()
 
         # Extrude down and close bottom
@@ -170,7 +207,7 @@ class EmbossPlane(bpy.types.Operator):
             displace.texture = iTex
             displace.mid_level = 1
             displace.direction = 'Z'
-            displace.vertex_group = 'face'
+            displace.vertex_group = 'emboss'
             displace.texture_coords = 'UV'
             displace.strength = self.Emboss_height
             displace.show_in_editmode = True
