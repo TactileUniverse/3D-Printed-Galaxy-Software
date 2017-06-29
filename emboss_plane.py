@@ -51,53 +51,42 @@ class EmbossPlane(bpy.types.Operator):
 
     Fpu = FloatProperty(name="Faces per unit", default=3, min=0, description="Number of faces per unit length across the top of the plane")
     Emboss_height = FloatProperty(name="Emboss thickness", default=3, min=0.1, unit="LENGTH", description="The Emboss height for the model")
-    Base_height = FloatProperty(name="Base Thickness", default=1, min=0.1, unit="LENGTH", description="Thickness of the model's base")
+    Base_height = FloatProperty(name="Base Thickness", default=2, min=0.1, unit="LENGTH", description="Thickness of the model's base")
     Border_width = FloatProperty(name="Border width", default=3, min=0.1, unit="LENGTH", description="Width of the border")
+    Theta = FloatProperty(name="Taper angle", default=math.radians(45), min=math.radians(10), max=math.radians(90), unit="ROTATION", description="Angle to taper into the edges")
 
     def get_weight(self, vert):
         x, y, _ = vert.co
-        oy_minus = self.object_location[1] - (0.5 * self.ly)
-        oy_plus = self.object_location[1] + (0.5 * self.ly)
-        ox_minus = self.object_location[0] - (0.5 * self.lx)
-        ox_plus = self.object_location[0] + (0.5 * self.lx)
-        BE = self.Border_width + self.Emboss_height
-        if (y > oy_plus - self.Border_width) or \
-           (y < oy_minus + self.Border_width) or \
-           (x > ox_plus - self.Border_width) or \
-           (x < ox_minus + self.Border_width):
+        x0, y0, _ = self.object_location
+        fac = self.Emboss_height / math.tan(self.Theta)
+        x3 = x0 + (0.5 * self.lx)
+        x2 = x3 - self.Border_width
+        x1 = x2 - fac
+        y3 = y0 + (0.5 * self.ly)
+        y2 = y3 - self.Border_width
+        y1 = y2 - fac
+        xm3 = x0 - (0.5 * self.lx)
+        xm2 = xm3 + self.Border_width
+        xm1 = xm2 + fac
+        ym3 = y0 - (0.5 * self.ly)
+        ym2 = ym3 + self.Border_width
+        ym1 = ym2 + fac
+        if (y > y2) or \
+           (y < ym2) or \
+           (x > x2) or \
+           (x < xm2):
             return 0
-        elif (y < oy_plus - BE) and \
-             (y > oy_minus + BE) and \
-             (x < ox_plus - BE) and \
-             (x > ox_minus + BE):
+        elif (y < y1) and \
+             (y > ym1) and \
+             (x < x1) and \
+             (x > xm1):
             return 1
         else:
-            y_high = (y <= oy_plus - self.Border_width) and (y >= oy_plus - BE)
-            y_high_weight = (oy_plus - self.Border_width - y) / self.Emboss_height
-            y_low = (y <= oy_minus + BE) and (y >= oy_minus + self.Border_width)
-            y_low_weight = (y - oy_minus - self.Border_width) / self.Emboss_height
-            x_high = (x <= ox_plus - self.Border_width) and (x >= ox_plus - BE)
-            x_high_weight = (ox_plus - self.Border_width - x) / self.Emboss_height
-            x_low = (x <= ox_minus + BE) and (x >= ox_minus + self.Border_width)
-            x_low_weight = (x - ox_minus - self.Border_width) / self.Emboss_height
-            if y_low:
-                if x_low:
-                    return min(y_low_weight, x_low_weight)
-                elif x_high:
-                    return min(y_low_weight, x_high_weight)
-                else:
-                    return y_low_weight
-            if y_high:
-                if x_low:
-                    return min(y_high_weight, x_low_weight)
-                elif x_high:
-                    return min(y_high_weight, x_high_weight)
-                else:
-                    return y_high_weight
-            elif x_high:
-                return x_high_weight
-            else:
-                return x_low_weight
+            x_weight = 1 - ((x - x1) / fac)
+            xm_weight = 1 - ((xm1 - x) / fac)
+            y_weight = 1 - ((y - y1) / fac)
+            ym_weight = 1 - ((ym1 - y) / fac)
+            return min([x_weight, xm_weight, y_weight, ym_weight])
 
     def execute(self, context):
         object = context.active_object
