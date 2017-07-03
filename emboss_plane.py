@@ -2,7 +2,7 @@ import bpy
 import bmesh
 import math
 from mathutils import Vector
-from bpy.props import IntProperty, FloatProperty
+from bpy.props import IntProperty, FloatProperty, BoolProperty
 
 bl_info = {
     "name": "Emboss plane",
@@ -49,11 +49,61 @@ class EmbossPlane(bpy.types.Operator):
     bl_label = "Emboss and solidify a plane"
     bl_options = {'REGISTER', 'UNDO'}
 
-    Fpu = FloatProperty(name="Faces per unit", default=3, min=0, description="Number of faces per unit length across the top of the plane")
-    Emboss_height = FloatProperty(name="Emboss thickness", default=3, min=0.1, unit="LENGTH", description="The Emboss height for the model")
-    Base_height = FloatProperty(name="Base Thickness", default=2, min=0.1, unit="LENGTH", description="Thickness of the model's base")
-    Border_width = FloatProperty(name="Border width", default=3, min=0.1, unit="LENGTH", description="Width of the border")
-    Theta = FloatProperty(name="Taper angle", default=math.radians(45), min=math.radians(10), max=math.radians(90), unit="ROTATION", description="Angle to taper into the edges")
+    Fpu = FloatProperty(
+        name="Faces per unit",
+        default=2,
+        min=0,
+        description="Number of faces per unit length across the top of the plane"
+    )
+    Emboss_height = FloatProperty(
+        name="Emboss thickness",
+        default=3,
+        min=0.1,
+        unit="LENGTH",
+        description="The Emboss height for the model"
+    )
+    Base_height = FloatProperty(
+        name="Base Thickness",
+        default=2,
+        min=0.1,
+        unit="LENGTH",
+        description="Thickness of the model's base"
+    )
+    Border_width = FloatProperty(
+        name="Border width",
+        default=3,
+        min=0.1,
+        unit="LENGTH",
+        description="Width of the border"
+    )
+    Theta = FloatProperty(
+        name="Taper angle",
+        default=math.radians(90),
+        min=math.radians(10),
+        max=math.radians(90),
+        unit="ROTATION",
+        description="Angle to taper into the edges"
+    )
+    External_x = BoolProperty(
+        name="Exteranl +X",
+        default=False,
+        description="Make +X edge external to the model"
+    )
+    External_mx = BoolProperty(
+        name="Exteranl -X",
+        default=False,
+        description="Make -X edge external to the model"
+    )
+    External_y = BoolProperty(
+        name="Exteranl +Y",
+        default=False,
+        description="Make +Y edge external to the model"
+    )
+    External_my = BoolProperty(
+        name="Exteranl -Y",
+        default=False,
+        description="Make -Y edge external to the model"
+    )
 
     def get_weight(self, vert):
         x, y, _ = vert.co
@@ -71,21 +121,29 @@ class EmbossPlane(bpy.types.Operator):
         ym3 = y0 - (0.5 * self.ly)
         ym2 = ym3 + self.Border_width
         ym1 = ym2 + fac
-        if (y > y2) or \
-           (y < ym2) or \
-           (x > x2) or \
-           (x < xm2):
+        if (not self.External_y and (y > y2)) or \
+           (not self.External_my and (y < ym2)) or \
+           (not self.External_x and (x > x2)) or \
+           (not self.External_mx and (x < xm2)):
             return 0
-        elif (y < y1) and \
-             (y > ym1) and \
-             (x < x1) and \
-             (x > xm1):
+        elif (self.External_y or (y < y1)) and \
+             (self.External_my or (y > ym1)) and \
+             (self.External_x or (x < x1)) and \
+             (self.External_mx or (x > xm1)):
             return 1
         else:
-            x_weight = 1 - ((x - x1) / fac)
-            xm_weight = 1 - ((xm1 - x) / fac)
-            y_weight = 1 - ((y - y1) / fac)
-            ym_weight = 1 - ((ym1 - y) / fac)
+            x_weight = 1
+            xm_weight = 1
+            y_weight = 1
+            ym_weight = 1
+            if not self.External_x:
+                x_weight = 1 - ((x - x1) / fac)
+            if not self.External_mx:
+                xm_weight = 1 - ((xm1 - x) / fac)
+            if not self.External_y:
+                y_weight = 1 - ((y - y1) / fac)
+            if not self.External_my:
+                ym_weight = 1 - ((ym1 - y) / fac)
             return min([x_weight, xm_weight, y_weight, ym_weight])
 
     def execute(self, context):
