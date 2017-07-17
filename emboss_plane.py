@@ -231,6 +231,7 @@ class EmbossPlane(bpy.types.Operator):
             bm.verts.ensure_lookup_table()
             bm.edges.ensure_lookup_table()
         bound_verts = [v for v in bm.verts if v.is_boundary]
+        bound_verts_index = [v.index for v in bound_verts]
         bound_edges = [e for e in bm.edges if e.is_boundary]
         bound_edges_index += [e.index for e in bound_edges]
         bmesh.ops.translate(bm, vec=extrude_normal, verts=bound_verts)
@@ -238,6 +239,7 @@ class EmbossPlane(bpy.types.Operator):
 
         # set crease on boundary
         bpy.ops.object.editmode_toggle()
+        object.vertex_groups['emboss'].remove(bound_verts_index)
         for idx in bound_edges_index:
             object.data.edges[idx].select = True
         bpy.ops.object.editmode_toggle()
