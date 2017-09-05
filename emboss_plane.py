@@ -226,7 +226,7 @@ class EmbossPlane(bpy.types.Operator):
             ))
         return [w1_l, w1_r], [w2_l, w2_r]
 
-    def make_wedge(self, wedge):
+    def make_wedge(self, wedge, name='wedge1'):
         left, right = wedge
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.mesh.select_mode(type='FACE')
@@ -238,7 +238,9 @@ class EmbossPlane(bpy.types.Operator):
         bpy.ops.transform.edge_crease(value=1)
         selected_faces = [f for f in bm.faces if f.select]
         selected_verts = [v for v in bm.verts if v.select]
+        wedge_verts = [v.index for v in selected_verts]
         bottom_verts = [v for v in selected_verts if v.co[2] == self.object.location[2] - 1 * (self.Emboss_height + self.Base_height)]
+        vgk = self.object.vertex_groups.keys()
         bpy.ops.mesh.select_all(action='DESELECT')
         for v in bottom_verts:
             v.select = True
@@ -250,8 +252,27 @@ class EmbossPlane(bpy.types.Operator):
         for f in selected_faces:
             f.select = True
         bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value": normal})
+        selected_verts = [v for v in bm.verts if v.select]
+        for v in selected_verts:
+            wedge_verts.append(v.index)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.mesh.select_mode(type='EDGE')
+        bpy.ops.object.editmode_toggle()
+        if name not in vgk:
+            self.object.vertex_groups.new(name)
+        self.object.vertex_groups[name].add(wedge_verts, 1, 'REPLACE')
+        bpy.ops.object.editmode_toggle()
+
+    def scale_wedge(self, name='wedge1'):
+        bpy.ops.mesh.select_all(action='DESELECT')
+        vindex = self.object.vertex_groups[name].index
+        self.object.vertex_groups.active_index = vindex
+        bpy.ops.object.vertex_group_select()
+        resize = (4.5 / 6.0, 1.0, 1.0)
+        if self.external_edge_rot[0] == 0:
+            resize = (1.0, 4.5 / 6.0, 1.0)
+        bpy.ops.transform.resize(value=resize)
+        bpy.ops.mesh.select_all(action='DESELECT')
 
     def get_kd_faces(self):
         bm = self.get_bm()
@@ -435,8 +456,8 @@ class EmbossPlane(bpy.types.Operator):
         # if external edge create wedge
         if self.External_edge != 'NONE':
             w1, w2 = self.get_wedge_loc()
-            self.make_wedge(w1)
-            self.make_wedge(w2)
+            self.make_wedge(w1, name='wedge1')
+            self.make_wedge(w2, name='wedge2')
 
         # add modifiers
         tex = bpy.data.textures.keys()
@@ -467,6 +488,8 @@ class EmbossPlane(bpy.types.Operator):
         # if external edge create edge
         if self.External_edge != 'NONE':
             self.make_external_edge()
+            self.scale_wedge(name='wedge1')
+            self.scale_wedge(name='wedge2')
         else:
             self.remove_external_edge()
         subsurf.show_viewport = True
