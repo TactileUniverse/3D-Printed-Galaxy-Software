@@ -1,28 +1,18 @@
-'''
-Convert set of 3 fits files into a single band images and an rgb false color image
-call as:
-    python make_images {path to files} {common name of files}
-example:
-    python make_images './M110' 'M110_dE'
-'''
-import sys
 import numpy as np
 from astropy.visualization import stretch, interval
 from astropy.io import fits
+from astropy import wcs
 from reproject import reproject_interp
 from matplotlib import pyplot as plt
 
-# file path vars
-path = sys.argv[1]
-name = sys.argv[2]
-base = '{0}/{1}'.format(path, name)
 
-
-def logScaleImage(image, return_full=False):
+def scaleImage(image, a=1, stretch_type='asinh'):
     reagon = interval.AsymmetricPercentileInterval(10., 99.95)
     vmin, vmax = reagon.get_limits(image)
-    a = vmax/vmin - 1
-    scale = stretch.LogStretch(a=a)
+    if stretch_type == 'log':
+        scale = stretch.LogStretch(a=a)
+    elif stretch_type == 'asinh':
+        scale = stretch.AsinhStretch(a=a)
     image_scaled = (scale + reagon)(image)
     return image_scaled
 
@@ -31,24 +21,44 @@ def removeNaN(data):
     bdx = ~np.isfinite(data)
     data[bdx] = 0
 
-hdu_b = fits.open('{0}_b.fits'.format(base))
-image_b_scaled = logScaleImage(hdu_b[0].data)
-plt.imsave('{0}_b.png'.format(base), image_b_scaled, cmap='Greys_r', origin='lower')
 
-hdu_r = fits.open('{0}_r.fits'.format(base))
-image_r, footprint_r = reproject_interp(hdu_r[0], hdu_b[0].header)
-image_r_scaled = logScaleImage(image_r)
-removeNaN(image_r_scaled)
-plt.imsave('{0}_r.png'.format(base), image_r_scaled, cmap='Greys_r', origin='lower')
+def make_images(base, index_cut=1300, filters='gri', **kwargs):
+    hdus = []
+    images_scaled = []
+    for fdx, filt in enumerate(filters):
+        hdu = fits.open('{0}-{1}.fits.gz'.format(base, filt))
+        w = wcs.WCS(hdu[0].header)
+        newf = fits.PrimaryHDU()
+        newf.data = hdu[0].data[index_cut:-index_cut, index_cut:-index_cut]
+        newf.header = hdu[0].header
+        newf.header.update(w[index_cut:-index_cut, index_cut:-index_cut].to_header())
+        hdus.append(newf)
+        if fdx > 0:
+            scidata, footprint = reproject_interp(newf, hdus[0].header)
+        scidata = newf.data
+        scidata[scidata < 0] = 0
+        image = scaleImage(scidata, **kwargs)
+        removeNaN(image)
+        images_scaled.append(image)
+        plt.imsave('{0}_{1}_{2}.png'.format(base, filt, kwargs.get('stretch_type', 'asinh')), image, cmap='Greys_r', origin='lower')
 
-hdu_ir = fits.open('{0}_ir.fits'.format(base))
-image_ir, footprint_ir = reproject_interp(hdu_ir[0], hdu_b[0].header)
-image_ir_scaled = logScaleImage(image_ir)
-removeNaN(image_ir_scaled)
-plt.imsave('{0}_ir.png'.format(base), image_ir_scaled, cmap='Greys_r', origin='lower')
+    RGB_image = np.zeros([images_scaled[0].shape[0], images_scaled[0].shape[1], 3])
+    RGB_image[:, :, 0] = images_scaled[2]
+    RGB_image[:, :, 1] = images_scaled[1]
+    RGB_image[:, :, 2] = images_scaled[0]
+    RGB_image[RGB_image > 1] = 1
+    RGB_image[RGB_image < 0] = 0
+    plt.imsave('{0}_rgb_{1}.png'.format(base, kwargs.get('stretch_type', 'asinh')), RGB_image, origin='lower')
 
-RGB_image = np.zeros([image_b_scaled.shape[0], image_b_scaled.shape[1], 3])
-RGB_image[:, :, 0] = image_ir_scaled
-RGB_image[:, :, 1] = image_r_scaled
-RGB_image[:, :, 2] = image_b_scaled
-plt.imsave('{0}_rgb.png'.format(base), RGB_image, origin='lower')
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Create single band and false color images from fits files')
+    parser.add_argument('base_name', type=str, help='the base name of the fits files (note: all files must be named `{base_name}_{filter_letter}`)')
+    parser.add_argument('-c', '--crop', type=int, help='an intiger used to corp the fits images (by index of array)')
+    parser.add_argument('-f', '--filters', type=str, default='gri', choices=['gri', 'rbi'], help='a three letter stirng representing the filters contained in each fits file')
+    parser.add_argument('-a', type=float, default=1, help='the `a` parameter used in the streact function')
+    parser.add_argument('-s', '--stretch', type=str, default='asinh', choices=['asinh', 'log'], help='the type of stretch to use for the fits image')
+
+    args = parser.parse_args()
+    make_images(args.base_name, index_cut=args.crop, filters=args.filters, a=args.a, stretch_type=args.stretch)
