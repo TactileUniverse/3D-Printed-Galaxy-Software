@@ -1,8 +1,8 @@
 import bpy
 import bmesh
 import math
-from mathutils import Vector, kdtree, Matrix
-from bpy.props import IntProperty, FloatProperty, BoolProperty, EnumProperty
+from mathutils import Vector, kdtree
+from bpy.props import FloatProperty, EnumProperty
 
 bl_info = {
     'name': 'Emboss plane',
@@ -17,6 +17,7 @@ bl_info = {
 
 class EmbossPlane(bpy.types.Operator):
     '''Emboss Plane'''
+
     bl_idname = 'object.emboss_plane'
     bl_label = 'Emboss and solidify a plane'
     bl_options = {'REGISTER', 'UNDO'}
@@ -356,6 +357,8 @@ class EmbossPlane(bpy.types.Operator):
     def get_weight(self, vert):
         x, y, _ = vert.co
         x0, y0, _ = self.object.location
+        x = x + x0
+        y = y + y0
         fac = self.Emboss_height / math.tan(self.Theta)
         x3 = x0 + (0.5 * self.lx)
         x2 = x3 - self.Border_width
