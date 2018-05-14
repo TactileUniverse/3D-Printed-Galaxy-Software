@@ -1,0 +1,18 @@
+{
+  "input_file_path": "M51_g.png",
+  "plane_height": 112,
+  "emboss_plane_keywords": {
+    "Fpu": 2,
+    "Emboss_height": 3,
+    "Base_height": 3,
+    "Border_width": 3,
+    "External_edge": "TOP"
+  },
+  "filter_size": 1.0,
+  "stl_keywords": {
+    "axis_forward": "Z",
+    "axis_up": "X"
+  },
+  "output_path": "/Users/coleman/Desktop",
+  "output_name": "M51_g"
+}
