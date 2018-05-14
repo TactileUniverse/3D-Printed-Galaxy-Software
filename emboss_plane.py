@@ -1,14 +1,14 @@
 import bpy
 import bmesh
 import math
-from mathutils import Vector, kdtree
+from mathutils import Vector, Matrix
 from bpy.props import FloatProperty, EnumProperty
 
 bl_info = {
     'name': 'Emboss plane',
     'description': 'Emboss and solidify a plane',
     'author': 'Coleman Krawczyk',
-    'version': (1, 4),
+    'version': (3, 0),
     'blender': (2, 76, 0),
     'location': 'View3D > Tools > Mesh Edit',
     'category': 'Mesh',
@@ -76,216 +76,96 @@ class EmbossPlane(bpy.types.Operator):
             bm.faces.ensure_lookup_table()
         return bm
 
-    def get_wedge_loc(self):
+    def get_external_rot(self):
         if self.External_edge == 'TOP':
-            w1_l = Vector((
-                self.object.location[0] - 0.25 * self.lx - 3,
-                self.object.location[1] + 0.5 * self.ly,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w1_r = Vector((
-                self.object.location[0] - 0.25 * self.lx + 3,
-                self.object.location[1] + 0.5 * self.ly,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w2_l = Vector((
-                self.object.location[0] + 0.25 * self.lx - 3,
-                self.object.location[1] + 0.5 * self.ly,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w2_r = Vector((
-                self.object.location[0] + 0.25 * self.lx + 3,
-                self.object.location[1] + 0.5 * self.ly,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_loc = Vector((
-                self.object.location[0],
-                self.object.location[1] + 0.5 * (self.ly + self.Border_width),
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_loc_final = Vector((
-                self.object.location[0],
-                self.object.location[1] - 0.5 * (self.ly - self.Border_width),
-                self.object.location[2] + (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_rot = (math.radians(180), 0, 0)
-            self.external_edge_scale = Vector((
-                self.lx,
-                self.Border_width,
-                self.Emboss_height + self.Base_height
-            ))
+            R = Matrix.Rotation(0, 4, Vector((0, 0, 1)))
         elif self.External_edge == 'BOTTOM':
-            w1_l = Vector((
-                self.object.location[0] - 0.25 * self.lx - 3,
-                self.object.location[1] - 0.5 * self.ly,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w1_r = Vector((
-                self.object.location[0] - 0.25 * self.lx + 3,
-                self.object.location[1] - 0.5 * self.ly,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w2_l = Vector((
-                self.object.location[0] + 0.25 * self.lx - 3,
-                self.object.location[1] - 0.5 * self.ly,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w2_r = Vector((
-                self.object.location[0] + 0.25 * self.lx + 3,
-                self.object.location[1] - 0.5 * self.ly,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_loc = Vector((
-                self.object.location[0],
-                self.object.location[1] - 0.5 * (self.ly + self.Border_width),
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_loc_final = Vector((
-                self.object.location[0],
-                self.object.location[1] + 0.5 * (self.ly - self.Border_width),
-                self.object.location[2] + (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_rot = (math.radians(180), 0, 0)
-            self.external_edge_scale = Vector((
-                self.lx,
-                self.Border_width,
-                self.Emboss_height + self.Base_height
-            ))
+            R = Matrix.Rotation(math.radians(180), 4, Vector((0, 0, 1)))
         elif self.External_edge == 'RIGHT':
-            w1_l = Vector((
-                self.object.location[0] + 0.5 * self.lx,
-                self.object.location[1] - 0.25 * self.ly - 3,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w1_r = Vector((
-                self.object.location[0] + 0.5 * self.lx,
-                self.object.location[1] - 0.25 * self.ly + 3,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w2_l = Vector((
-                self.object.location[0] + 0.5 * self.lx,
-                self.object.location[1] + 0.25 * self.ly - 3,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w2_r = Vector((
-                self.object.location[0] + 0.5 * self.lx,
-                self.object.location[1] + 0.25 * self.ly + 3,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_loc = Vector((
-                self.object.location[0] + 0.5 * (self.lx + self.Border_width),
-                self.object.location[1],
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_loc_final = Vector((
-                self.object.location[0] - 0.5 * (self.lx - self.Border_width),
-                self.object.location[1],
-                self.object.location[2] + (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_rot = (0, math.radians(180), 0)
-            self.external_edge_scale = Vector((
-                self.Border_width,
-                self.ly,
-                self.Emboss_height + self.Base_height
-            ))
+            R = Matrix.Rotation(math.radians(-90), 4, Vector((0, 0, 1)))
         else:
-            w1_l = Vector((
-                self.object.location[0] - 0.5 * self.lx,
-                self.object.location[1] - 0.25 * self.ly - 3,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w1_r = Vector((
-                self.object.location[0] - 0.5 * self.lx,
-                self.object.location[1] - 0.25 * self.ly + 3,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w2_l = Vector((
-                self.object.location[0] - 0.5 * self.lx,
-                self.object.location[1] + 0.25 * self.ly - 3,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            w2_r = Vector((
-                self.object.location[0] - 0.5 * self.lx,
-                self.object.location[1] + 0.25 * self.ly + 3,
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_loc = Vector((
-                self.object.location[0] - 0.5 * (self.lx + self.Border_width),
-                self.object.location[1],
-                self.object.location[2] - 0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_loc_final = Vector((
-                self.object.location[0] + 0.5 * (self.lx - self.Border_width),
-                self.object.location[1],
-                self.object.location[2] + (self.Emboss_height + self.Base_height)
-            ))
-            self.external_edge_rot = (0, math.radians(180), 0)
-            self.external_edge_scale = Vector((
-                self.Border_width,
-                self.ly,
-                self.Emboss_height + self.Base_height
-            ))
-        return [w1_l, w1_r], [w2_l, w2_r]
+            R = Matrix.Rotation(math.radians(90), 4, Vector((0, 0, 1)))
+        T = Matrix.Translation(self.object.location)
+        self.external_rot = T * R * T.inverted()
 
-    def make_wedge(self, wedge, name='wedge1'):
-        left, right = wedge
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.mesh.select_mode(type='FACE')
-        kd, bm = self.get_kd_faces()
-        normal = bm.faces[kd.find(left)[1]].normal * self.Border_width * 2.0 / 3.0
-        bm.faces[kd.find(left)[1]].select = True
-        bm.faces[kd.find(right)[1]].select = True
-        bpy.ops.mesh.shortest_path_select()
-        bpy.ops.transform.edge_crease(value=1)
-        selected_faces = [f for f in bm.faces if f.select]
-        selected_verts = [v for v in bm.verts if v.select]
-        wedge_verts = [v.index for v in selected_verts]
-        bottom_verts = [v for v in selected_verts if v.co[2] == self.object.location[2] - 1 * (self.Emboss_height + self.Base_height)]
-        vgk = self.object.vertex_groups.keys()
-        bpy.ops.mesh.select_all(action='DESELECT')
-        for v in bottom_verts:
-            v.select = True
-        resize = (0.5, 1.0, 1.0)
-        if normal[0] != 0:
-            resize = (1.0, 0.5, 1.0)
-        bpy.ops.transform.resize(value=resize)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        for f in selected_faces:
-            f.select = True
-        bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value": normal})
-        selected_verts = [v for v in bm.verts if v.select]
-        for v in selected_verts:
-            wedge_verts.append(v.index)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.mesh.select_mode(type='EDGE')
+    def remove_wedge(self):
         bpy.ops.object.editmode_toggle()
-        if name not in vgk:
-            self.object.vertex_groups.new(name)
-        self.object.vertex_groups[name].add(wedge_verts, 1, 'REPLACE')
+        if 'wedge' in bpy.data.objects.keys():
+            self.object.select = False
+            self.wedge.select = True
+            bpy.ops.object.delete()
+            self.object.select = True
         bpy.ops.object.editmode_toggle()
 
-    def scale_wedge(self, name='wedge1'):
-        bpy.ops.mesh.select_all(action='DESELECT')
-        vindex = self.object.vertex_groups[name].index
-        self.object.vertex_groups.active_index = vindex
-        bpy.ops.object.vertex_group_select()
-        resize = (4.5 / 6.0, 1.0, 1.0)
-        if self.external_edge_rot[0] == 0:
-            resize = (1.0, 4.5 / 6.0, 1.0)
-        bpy.ops.transform.resize(value=resize)
-        bpy.ops.mesh.select_all(action='DESELECT')
+    def make_wedge(self):
+        self.remove_wedge()
+        shift = 0.25 * self.lx
+        x = [
+            self.object.location[0] - 2.25,
+            self.object.location[0] + 2.25,
+            self.object.location[0] - 1.125,
+            self.object.location[0] + 1.125
+        ]
+        y = [
+            self.object.location[1] + (0.5 * self.ly) + (2 * self.Border_width / 3),
+            self.object.location[1] + (0.5 * self.ly) - self.Border_width
+        ]
+        z = [
+            self.object.location[2] - self.Emboss_height - 0.05,
+            self.object.location[2] - self.Emboss_height - self.Base_height + 0.05
+        ]
+        verts = [
+            Vector((x[0] + shift, y[0], z[0])),
+            Vector((x[1] + shift, y[0], z[0])),
+            Vector((x[1] + shift, y[1], z[0])),
+            Vector((x[0] + shift, y[1], z[0])),
 
-    def get_kd_faces(self):
-        bm = self.get_bm()
-        size = len(bm.faces)
-        kd = kdtree.KDTree(size)
-        for i, f in enumerate(bm.faces):
-            n_v = len(f.verts)
-            vs = [v.co for v in f.verts]
-            f_co = sum(vs, Vector((0, 0, 0))) / float(n_v)
-            kd.insert(f_co, i)
-        kd.balance()
-        return kd, bm
+            Vector((x[2] + shift, y[0], z[1])),
+            Vector((x[3] + shift, y[0], z[1])),
+            Vector((x[3] + shift, y[1], z[1])),
+            Vector((x[2] + shift, y[1], z[1])),
+
+            Vector((x[0] - shift, y[0], z[0])),
+            Vector((x[1] - shift, y[0], z[0])),
+            Vector((x[1] - shift, y[1], z[0])),
+            Vector((x[0] - shift, y[1], z[0])),
+
+            Vector((x[2] - shift, y[0], z[1])),
+            Vector((x[3] - shift, y[0], z[1])),
+            Vector((x[3] - shift, y[1], z[1])),
+            Vector((x[2] - shift, y[1], z[1]))
+        ]
+        faces = [
+            (3, 2, 1, 0),
+            (0, 4, 7, 3),
+            (4, 5, 6, 7),
+            (1, 2, 6, 5),
+            (0, 1, 5, 4),
+            (2, 3, 7, 6),
+
+            (3 + 8, 2 + 8, 1 + 8, 0 + 8),
+            (0 + 8, 4 + 8, 7 + 8, 3 + 8),
+            (4 + 8, 5 + 8, 6 + 8, 7 + 8),
+            (1 + 8, 2 + 8, 6 + 8, 5 + 8),
+            (0 + 8, 1 + 8, 5 + 8, 4 + 8),
+            (2 + 8, 3 + 8, 7 + 8, 6 + 8)
+        ]
+        me = bpy.data.meshes.new('wedge')
+        self.wedge = bpy.data.objects.new('wedge', me)
+        bpy.context.scene.objects.link(self.wedge)
+        me.from_pydata(verts, [], faces)
+        me.update()
+        bpy.ops.object.editmode_toggle()
+        self.wedge.select = True
+        self.object.select = False
+        bpy.context.scene.objects.active = self.wedge
+        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
+        self.wedge.location = self.external_rot * self.wedge.location
+        self.wedge.rotation_euler.rotate(self.external_rot)
+        bpy.context.scene.objects.active = self.object
+        self.wedge.select = False
+        self.object.select = True
+        bpy.ops.object.editmode_toggle()
 
     def remove_external_edge(self):
         bpy.ops.object.editmode_toggle()
@@ -298,25 +178,74 @@ class EmbossPlane(bpy.types.Operator):
 
     def make_external_edge(self):
         self.remove_external_edge()
-        start_vert = self.external_edge_loc + 0.5 * self.external_edge_scale
-        x, y, z = self.external_edge_scale
+        x = [
+            self.object.location[0] - (0.5 * self.lx),
+            self.object.location[0] + (0.5 * self.lx),
+            self.object.location[0] + (0.25 * self.lx) - 1.75,
+            self.object.location[0] + (0.25 * self.lx) + 1.75,
+            self.object.location[0] + (0.25 * self.lx) - 3.5,
+            self.object.location[0] + (0.25 * self.lx) + 3.5,
+            self.object.location[0] - (0.25 * self.lx) - 1.75,
+            self.object.location[0] - (0.25 * self.lx) + 1.75,
+            self.object.location[0] - (0.25 * self.lx) - 3.5,
+            self.object.location[0] - (0.25 * self.lx) + 3.5
+        ]
+        y = [
+            self.object.location[1] - (0.5 * self.ly) + self.Border_width,
+            self.object.location[1] - (0.5 * self.ly),
+            self.object.location[1] - (0.5 * self.ly) + (self.Border_width / 3)
+        ]
+        z = [
+            self.object.location[2] + 3,
+            self.object.location[2] + 3 + self.Emboss_height + self.Base_height,
+            self.object.location[2] + 3 + self.Base_height
+        ]
         verts = [
-            start_vert,
-            start_vert - Vector((0, 0, z)),
-            start_vert - Vector((x, 0, z)),
-            start_vert - Vector((x, 0, 0)),
-            start_vert - Vector((x, y, 0)),
-            start_vert - Vector((x, y, z)),
-            start_vert - Vector((0, y, z)),
-            start_vert - Vector((0, y, 0)),
+            Vector((x[0], y[0], z[0])),
+            Vector((x[1], y[0], z[0])),
+            Vector((x[1], y[1], z[0])),
+            Vector((x[0], y[1], z[0])),
+
+            Vector((x[0], y[0], z[1])),
+            Vector((x[1], y[0], z[1])),
+            Vector((x[1], y[1], z[1])),
+            Vector((x[0], y[1], z[1])),
+
+            Vector((x[2], y[0], z[1])),
+            Vector((x[3], y[0], z[1])),
+            Vector((x[3], y[2], z[1])),
+            Vector((x[2], y[2], z[1])),
+
+            Vector((x[4], y[0], z[2])),
+            Vector((x[5], y[0], z[2])),
+            Vector((x[5], y[2], z[2])),
+            Vector((x[4], y[2], z[2])),
+
+            Vector((x[6], y[0], z[1])),
+            Vector((x[7], y[0], z[1])),
+            Vector((x[7], y[2], z[1])),
+            Vector((x[6], y[2], z[1])),
+
+            Vector((x[8], y[0], z[2])),
+            Vector((x[9], y[0], z[2])),
+            Vector((x[9], y[2], z[2])),
+            Vector((x[8], y[2], z[2])),
         ]
         faces = [
             (0, 1, 2, 3),
-            (7, 4, 5, 6),
-            (0, 3, 4, 7),
-            (6, 5, 2, 1),
-            (0, 7, 6, 1),
-            (4, 3, 2, 5)
+            (0, 3, 7, 4),
+            (5, 6, 2, 1),
+            (3, 2, 6, 7),
+            (15, 14, 13, 12),
+            (13, 14, 10, 9),
+            (8, 11, 15, 12),
+            (11, 10, 14, 15),
+            (23, 22, 21, 20),
+            (21, 22, 18, 17),
+            (16, 19, 23, 20),
+            (19, 18, 22, 23),
+            (7, 6, 5, 9, 10, 11, 8, 17, 18, 19, 16, 4),
+            (4, 16, 20, 21, 17, 8, 12, 13, 9, 5, 1, 0)
         ]
         me = bpy.data.meshes.new('ExternalEdgeMesh')
         self.external_edge = bpy.data.objects.new('ExternalEdge', me)
@@ -328,13 +257,8 @@ class EmbossPlane(bpy.types.Operator):
         self.object.select = False
         bpy.context.scene.objects.active = self.external_edge
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        bool_mod = self.external_edge.modifiers.new(name='bool', type='BOOLEAN')
-        bool_mod.operation = 'DIFFERENCE'
-        bool_mod.solver = 'CARVE'
-        bool_mod.object = self.object
-        bpy.ops.object.modifier_apply(apply_as='DATA', modifier='bool')
-        self.external_edge.location = self.external_edge_loc_final
-        self.external_edge.rotation_euler = self.external_edge_rot
+        self.external_edge.location = self.external_rot * self.external_edge.location
+        self.external_edge.rotation_euler.rotate(self.external_rot)
         bpy.context.scene.objects.active = self.object
         self.external_edge.select = False
         self.object.select = True
@@ -456,12 +380,6 @@ class EmbossPlane(bpy.types.Operator):
         bpy.ops.object.editmode_toggle()
         bpy.ops.transform.edge_crease(value=1)
 
-        # if external edge create wedge
-        if self.External_edge != 'NONE':
-            w1, w2 = self.get_wedge_loc()
-            self.make_wedge(w1, name='wedge1')
-            self.make_wedge(w2, name='wedge2')
-
         # add modifiers
         tex = bpy.data.textures.keys()
         mod = self.object.modifiers.keys()
@@ -488,11 +406,11 @@ class EmbossPlane(bpy.types.Operator):
             subsurf = self.object.modifiers['smooth']
             subsurf.show_viewport = False
 
-        # if external edge create edge
+        # if external edge create wedge and edge
         if self.External_edge != 'NONE':
+            self.get_external_rot()
+            self.make_wedge()
             self.make_external_edge()
-            self.scale_wedge(name='wedge1')
-            self.scale_wedge(name='wedge2')
         else:
             self.remove_external_edge()
         subsurf.show_viewport = True
