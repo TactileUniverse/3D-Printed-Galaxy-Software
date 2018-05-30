@@ -37,3 +37,7 @@ blender TU_startup.blend --python-exit-code 1 --python make_model.py -- example_
 `output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
 
 `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
+
+
+##Name Plate
+`name_plate.py`: A [Blender](https://www.blender.org/) plugin to crate name plates for the models created with the Emboss Plane plugin.
