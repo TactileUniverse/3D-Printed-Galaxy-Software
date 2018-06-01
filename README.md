@@ -59,3 +59,10 @@ blender TU_startup.blend --python-exit-code 1 --python make_name_plate.py -- exa
 `output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
 
 `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
+
+## Command line install script
+`install_all_addons.py`: A script for installing and activating all of our plugins.
+
+```bash
+blender -b --python install_all_addons.py
+```
