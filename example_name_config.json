@@ -1,0 +1,18 @@
+{
+  "name_plate_keywords": {
+    "Size_x": 112,
+    "Size_y": 20,
+    "Size_z": 6,
+    "Text": "M51 u <",
+    "Text_size": 18,
+    "Notches": true,
+    "Base_height": 3,
+    "Border_width": 3
+  },
+  "stl_keywords": {
+    "axis_forward": "-Z",
+    "axis_up": "-X"
+  },
+  "output_path": "/Users/coleman/Desktop",
+  "output_name": "M51_u_name_plate"
+}
