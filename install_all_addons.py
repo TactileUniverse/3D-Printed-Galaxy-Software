@@ -1,12 +1,21 @@
 import bpy
+import os
+
+# get current directory
+current_dir = os.getcwd()
 
 # install and activate `emboss plane`
-bpy.ops.wm.addon_install(filepath='emboss_plane.py')
+emboss_plane_filepath = os.path.join(current_dir, 'emboss_plane.py')
+bpy.ops.wm.addon_install(filepath=emboss_plane_filepath)
 bpy.ops.wm.addon_enable(module='emboss_plane')
 
 # install and activate `name plate`
-bpy.ops.wm.addon_install(filepath='name_plate.py')
+name_plate_filepath = os.path.join(current_dir, 'name_plate.py')
+bpy.ops.wm.addon_install(filepath=name_plate_filepath)
 bpy.ops.wm.addon_enable(module='name_plate')
+
+# enable import images as plane
+bpy.ops.wm.addon_enable(module='io_import_images_as_planes')
 
 # save user preferences
 bpy.ops.wm.save_userpref()
