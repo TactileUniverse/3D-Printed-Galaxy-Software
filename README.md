@@ -38,7 +38,7 @@ blender TU_startup.blend --python-exit-code 1 --python make_model.py -- example_
 
 `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
 
-`spike_removal`: If `true` a spike removal code will be run on the model before export the `.stl` files.  This will locate any local spikes and lower them (typically foreground stars).  This is only needed if you fabrication method has a very high resolution (i.e. CNC milling).
+`spike_removal`: If `true` a spike removal code will be run on the model before export the `.stl` files.  This will locate any local spikes and lower them (typically foreground stars).  This is only needed if you fabrication method has a very high resolution (i.e. CNC milling).  This option will save the "spike removed" blend file separately from the unmodified file.
 
 
 ## Name Plate
