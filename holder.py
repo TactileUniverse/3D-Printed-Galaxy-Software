@@ -63,7 +63,7 @@ class Holder(bpy.types.Operator):
 
     Thickness_walls = FloatProperty(
         name='Thickness of outside walls',
-        default=3,
+        default=5,
         min=1,
         unit='LENGTH',
         description='Thicknesss of outside walls'
@@ -216,6 +216,39 @@ class Holder(bpy.types.Operator):
             [-10, -0.5 * self.W, 0],
             [20, self.W, self.Thickness_walls],
             name='base_6'
+        ))
+        # Lid rectangles
+        self.lid = []
+        lid_offset = self.W + 10
+        self.lid.append(self.make_rectangle(
+            [-0.5 * self.L, lid_offset - (0.5 * self.W), 0],
+            [self.L, 20, self.Thickness_walls],
+            name='lid_1'
+        ))
+        self.lid.append(self.make_rectangle(
+            [-0.5 * self.L, lid_offset + (0.5 * self.W) - 20, 0],
+            [self.L, 20, self.Thickness_walls],
+            name='lid_2'
+        ))
+        self.lid.append(self.make_rectangle(
+            [-0.5 * self.L, lid_offset - (0.5 * self.W), 0],
+            [20, self.W, self.Thickness_walls],
+            name='lid_3'
+        ))
+        self.lid.append(self.make_rectangle(
+            [(0.5 * self.L) - 20, lid_offset - (0.5 * self.W), 0],
+            [20, self.W, self.Thickness_walls],
+            name='lid_4'
+        ))
+        self.lid.append(self.make_rectangle(
+            [-0.5 * self.L, lid_offset - 10, 0],
+            [self.L, 20, self.Thickness_walls],
+            name='lid_5'
+        ))
+        self.lid.append(self.make_rectangle(
+            [-10, lid_offset - (0.5 * self.W), 0],
+            [20, self.W, self.Thickness_walls],
+            name='lid_6'
         ))
         # Side rectangles
         base_bar_center = self.H / 3
