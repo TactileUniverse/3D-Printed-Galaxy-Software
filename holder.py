@@ -7,7 +7,7 @@ bl_info = {
     'name': 'Tactile Universe model holder',
     'description': 'Make a holder for Tactile Universe models',
     'author': 'Coleman Krawczyk',
-    'version': (0, 1),
+    'version': (1, 0),
     'blender': (2, 76, 0),
     'location': 'View3D > Add > Mesh > New Object',
     'category': 'Mesh',
@@ -37,7 +37,7 @@ class Holder(bpy.types.Operator):
         description='Width of the slots in the holder'
     )
 
-    Height_model = FloatProperty(
+    Height_models = FloatProperty(
         name='Height of models',
         default=132,
         min=1,
@@ -45,12 +45,12 @@ class Holder(bpy.types.Operator):
         description='The height of the models to be held'
     )
 
-    Lenght_models = FloatProperty(
-        name='Lenght of models',
+    Length_models = FloatProperty(
+        name='Length of models',
         default=112,
         min=1,
         unit='LENGTH',
-        description='The lenght of the models to be held'
+        description='The length of the models to be held'
     )
 
     Thickness_slats = FloatProperty(
@@ -137,10 +137,10 @@ class Holder(bpy.types.Operator):
         x = 0.5 * self.L * xf + self.location.x
         y1 = self.location.y
         y2 = 0.5 * self.W * yf + self.location.y
-        z = self.location.z
+        z = self.location.z + 20
         sx = -self.Thickness_walls * xf
         sy = 20 * yf
-        sz = self.H
+        sz = self.H - 25
         verts = [
             Vector((x,      y1 + sy, z)),
             Vector((x + sx, y1 + sy, z)),
@@ -182,8 +182,8 @@ class Holder(bpy.types.Operator):
 
     def execute(self, context):
         self.location = copy.deepcopy(bpy.context.scene.cursor_location)
-        self.H = self.Height_model + self.Thickness_walls + 3
-        self.W = self.Lenght_models + (2 * self.Thickness_walls) + 3
+        self.H = self.Height_models + self.Thickness_walls + 3
+        self.W = self.Length_models + (2 * self.Thickness_walls) + 3
         self.L = self.Number_slots * (self.Width_slots + self.Thickness_slats) - self.Thickness_slats + 2 * self.Thickness_walls
         # Base rectangles
         self.base = []
@@ -198,13 +198,13 @@ class Holder(bpy.types.Operator):
             name='base_2'
         ))
         self.base.append(self.make_rectangle(
-            [-0.5 * self.L, -0.5 * self.W, 0],
-            [20, self.W, self.Thickness_walls],
+            [-0.5 * self.L, 5 - (0.5 * self.W), 0],
+            [20, self.W - 10, self.Thickness_walls],
             name='base_3'
         ))
         self.base.append(self.make_rectangle(
-            [(0.5 * self.L) - 20, -0.5 * self.W, 0],
-            [20, self.W, self.Thickness_walls],
+            [(0.5 * self.L) - 20, 5 - (0.5 * self.W), 0],
+            [20, self.W - 10, self.Thickness_walls],
             name='base_4'
         ))
         self.base.append(self.make_rectangle(
@@ -231,13 +231,13 @@ class Holder(bpy.types.Operator):
             name='lid_2'
         ))
         self.lid.append(self.make_rectangle(
-            [-0.5 * self.L, lid_offset - (0.5 * self.W), 0],
-            [20, self.W, self.Thickness_walls],
+            [-0.5 * self.L, 5 + lid_offset - (0.5 * self.W), 0],
+            [20, self.W - 10, self.Thickness_walls],
             name='lid_3'
         ))
         self.lid.append(self.make_rectangle(
-            [(0.5 * self.L) - 20, lid_offset - (0.5 * self.W), 0],
-            [20, self.W, self.Thickness_walls],
+            [(0.5 * self.L) - 20, 5 + lid_offset - (0.5 * self.W), 0],
+            [20, self.W - 10, self.Thickness_walls],
             name='lid_4'
         ))
         self.lid.append(self.make_rectangle(
@@ -293,46 +293,46 @@ class Holder(bpy.types.Operator):
         for i in range(1, self.Number_slots):
             slat_center = i * slat_center_base + self.Thickness_walls - (0.5 * self.L)
             self.front_slats.append(self.make_rectangle(
-                [slat_center - self.Thickness_slats, -0.5 * self.W, 0],
-                [self.Thickness_slats, 20, self.H],
+                [slat_center - self.Thickness_slats, -0.5 * self.W, self.Thickness_walls],
+                [self.Thickness_slats, 20, self.H - self.Thickness_walls],
                 name='front_slat_{0}'.format(i)
             ))
             self.back_slats.append(self.make_rectangle(
-                [slat_center - self.Thickness_slats, (0.5 * self.W) - 20, 0],
-                [self.Thickness_slats, 20, self.H],
+                [slat_center - self.Thickness_slats, (0.5 * self.W) - 20, self.Thickness_walls],
+                [self.Thickness_slats, 20, self.H - self.Thickness_walls],
                 name='back_slat_{0}'.format(i)
             ))
         # Faces
         self.left_face = []
         self.left_face.append(self.make_rectangle(
-            [-0.5 * self.L, -0.5 * self.W, 0],
-            [self.Thickness_walls, self.W, 20],
+            [-0.5 * self.L, -0.5 * self.W, self.Thickness_walls],
+            [self.Thickness_walls, self.W, (20 - self.Thickness_walls)],
             name='left_face_1'
         ))
         self.left_face.append(self.make_rectangle(
-            [-0.5 * self.L, -0.5 * self.W, 0],
-            [self.Thickness_walls, 20, self.H],
+            [-0.5 * self.L, -0.5 * self.W, 20],
+            [self.Thickness_walls, 20, self.H - 20],
             name='left_face_2'
         ))
         self.left_face.append(self.make_rectangle(
-            [-0.5 * self.L, (0.5 * self.W) - 20, 0],
-            [self.Thickness_walls, 20, self.H],
+            [-0.5 * self.L, (0.5 * self.W) - 20, 20],
+            [self.Thickness_walls, 20, self.H - 20],
             name='left_face_3'
         ))
         self.right_face = []
         self.right_face.append(self.make_rectangle(
-            [(0.5 * self.L) - self.Thickness_walls, -0.5 * self.W, 0],
-            [self.Thickness_walls, self.W, 20],
+            [(0.5 * self.L) - self.Thickness_walls, -0.5 * self.W, self.Thickness_walls],
+            [self.Thickness_walls, self.W, (20 - self.Thickness_walls)],
             name='right_face_1'
         ))
         self.right_face.append(self.make_rectangle(
-            [(0.5 * self.L) - self.Thickness_walls, -0.5 * self.W, 0],
-            [self.Thickness_walls, 20, self.H],
+            [(0.5 * self.L) - self.Thickness_walls, -0.5 * self.W, 20],
+            [self.Thickness_walls, 20, self.H - 20],
             name='right_face_2'
         ))
         self.right_face.append(self.make_rectangle(
-            [(0.5 * self.L) - self.Thickness_walls, (0.5 * self.W) - 20, 0],
-            [self.Thickness_walls, 20, self.H],
+            [(0.5 * self.L) - self.Thickness_walls, (0.5 * self.W) - 20, 20],
+            [self.Thickness_walls, 20, self.H - 20],
             name='right_face_3'
         ))
         # Diags
@@ -357,6 +357,9 @@ class Holder(bpy.types.Operator):
             x='right',
             name='right_face_5'
         ))
+        bpy.ops.object.select_all(action='TOGGLE')
+        for lid_rectangle in self.lid:
+            lid_rectangle.select = False
         return {'FINISHED'}
 
 
