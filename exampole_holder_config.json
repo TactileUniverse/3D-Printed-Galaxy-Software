@@ -1,0 +1,12 @@
+{
+  "holder_keywords": {
+    "Number_slots": 10,
+    "Width_slots": 20,
+    "Height_models": 132,
+    "Length_models": 112,
+    "Thickness_slats": 2,
+    "Thickness_walls": 5
+  },
+  "output_name": "holder",
+  "output_path": "/Users/coleman/Desktop"
+}

@@ -24,21 +24,14 @@ blender TU_startup.blend --python-exit-code 1 --python make_model.py -- example_
 ### Configuration
 `example_model_config.json`: A file containing the configuration parameters to run `make_model.py`.  This example file contains the maximum number of parameters that can be configured.
 
-`input_file_path`: Full path to the image file (if no path is specified it assumes the image is the the same directory the script is called from)
-
-`plane_height`: Height in `mm` of the resulting model
-
-`emboss_plane_keywords`: The keywords to be passed into the `emboss_plane` plugin, any that are not specified will use their default values
-
-`filter_size`: The size of the filter (in pixels) applied to the input image, this is useful for noisy images.
-
-`stl_keywords`: The keywords passed into the `stl` export function, any that are not specified will use default values.
-
-`output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
-
-`output_name`: The name to used for the `.blend` and `.stl` files created by the script.
-
-`spike_removal`: If `true` a spike removal code will be run on the model before export the `.stl` files.  This will locate any local spikes and lower them (typically foreground stars).  This is only needed if you fabrication method has a very high resolution (i.e. CNC milling).  This option will save the "spike removed" blend file separately from the unmodified file.
+ - `input_file_path`: Full path to the image file (if no path is specified it assumes the image is the the same directory the script is called from)
+ - `plane_height`: Height in `mm` of the resulting model
+ - `emboss_plane_keywords`: The keywords to be passed into the `emboss_plane` plugin, any that are not specified will use their default values
+ - `filter_size`: The size of the filter (in pixels) applied to the input image, this is useful for noisy images.
+ - `stl_keywords`: The keywords passed into the `stl` export function, any that are not specified will use default values.
+ - `output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
+ - `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
+ - `spike_removal`: If `true` a spike removal code will be run on the model before export the `.stl` files.  This will locate any local spikes and lower them (typically foreground stars).  This is only needed if you fabrication method has a very high resolution (i.e. CNC milling).  This option will save the "spike removed" blend file separately from the unmodified file.
 
 
 ## Name Plate
@@ -54,13 +47,27 @@ blender TU_startup.blend --python-exit-code 1 --python make_name_plate.py -- exa
 ### Configuration
 `example_name_config.json`: A file containing the configuration parameters to run `make_name_plate.py`.  This example file contains the maximum number of parameters that can be configured.
 
-`name_plate_keywords`: The keywords to be passed into the `name_plate` plugin, any that are not specified will use their default values
+ - `name_plate_keywords`: The keywords to be passed into the `name_plate` plugin, any that are not specified will use their default values
+ - `stl_keywords`: The keywords passed into the `stl` export function, any that are not specified will use default values.
+ - `output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
+ - `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
 
-`stl_keywords`: The keywords passed into the `stl` export function, any that are not specified will use default values.
+## Holder
+`holder.py`: A [Blender](https://www.blender.org/) plugin to create a holder for the models created with the Emboss Plane plugin.
 
-`output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
+## Make holder
+`make_holder.py`: A blender script for automating the holder making process via the command line.  Once set up this script can be used as follows
 
-`output_name`: The name to used for the `.blend` and `.stl` files created by the script.
+```bash
+blender TU_startup.blend --python-exit-code 1 --python make_holder.py -- example_holder_config.json
+```
+
+### Configuration
+`example_holder_config.json`: A file containing the configuration parameters to run `make_holder.py`.  This example file contains the maximum number of parameters that can be configured.
+
+ - `holder_keywords`: The keywords to be passed into the `holder` plugin, any that are not specified will use their default values
+ - `output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
+ - `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
 
 ## Command line install script
 `install_all_addons.py`: A script for installing and activating all of our plugins.
