@@ -14,6 +14,11 @@ name_plate_filepath = os.path.join(current_dir, 'name_plate.py')
 bpy.ops.wm.addon_install(filepath=name_plate_filepath)
 bpy.ops.wm.addon_enable(module='name_plate')
 
+# install and activate `holder`
+holder_filepath = os.path.join(current_dir, 'holder.py')
+bpy.ops.wm.addon_install(filepath=name_plate_filepath)
+bpy.ops.wm.addon_enable(module='holder')
+
 # enable import images as plane
 bpy.ops.wm.addon_enable(module='io_import_images_as_planes')
 
