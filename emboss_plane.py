@@ -2,7 +2,7 @@ import bpy
 import bmesh
 import math
 from mathutils import Vector, Matrix
-from bpy.props import FloatProperty, EnumProperty
+from bpy.props import FloatProperty, EnumProperty, BoolProperty
 
 bl_info = {
     'name': 'Emboss plane',
@@ -34,6 +34,11 @@ class EmbossPlane(bpy.types.Operator):
         min=0.1,
         unit='LENGTH',
         description='The Emboss height for the model'
+    )
+    Invert_image = BoolProperty(
+        name='Invert image',
+        default=False,
+        description='Invert the emboss direction'
     )
     Base_height = FloatProperty(
         name='Base Thickness',
@@ -381,23 +386,27 @@ class EmbossPlane(bpy.types.Operator):
         bpy.ops.transform.edge_crease(value=1)
 
         # add modifiers
+        invert_multiplyer = 1
+        if self.Invert_image:
+            invert_multiplyer = -1
         tex = bpy.data.textures.keys()
         mod = self.object.modifiers.keys()
         if 'Displacement' not in tex:
-            iTex = bpy.data.textures.new('Displacemnt', type='IMAGE')
+            iTex = bpy.data.textures.new('Displacement', type='IMAGE')
             iTex.image = bpy.data.images[0]  # assume last image loaded is the correct one
         if 'bump' not in mod:
             displace = self.object.modifiers.new(name='bump', type='DISPLACE')
             displace.texture = iTex
-            displace.mid_level = 1
+            displace.mid_level = 1 * invert_multiplyer
             displace.direction = 'Z'
             displace.vertex_group = 'emboss'
             displace.texture_coords = 'UV'
-            displace.strength = self.Emboss_height
+            displace.strength = self.Emboss_height * invert_multiplyer
             displace.show_in_editmode = True
         else:
             displace = self.object.modifiers['bump']
-            displace.strength = self.Emboss_height
+            displace.strength = self.Emboss_height * invert_multiplyer
+            displace.mid_level = 1 * invert_multiplyer
         if 'smooth' not in mod:
             subsurf = self.object.modifiers.new(name='smooth', type='SUBSURF')
             subsurf.show_viewport = False
