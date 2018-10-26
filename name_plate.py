@@ -8,7 +8,7 @@ bl_info = {
     'name': 'Tactile Universe Name plate',
     'description': 'Make a name plate for Tactile Universe model',
     'author': 'Coleman Krawczyk',
-    'version': (0, 1),
+    'version': (1, 0),
     'blender': (2, 76, 0),
     'location': 'View3D > Add > Mesh > New Object',
     'category': 'Mesh',

@@ -8,7 +8,7 @@ bl_info = {
     'name': 'Emboss plane',
     'description': 'Emboss and solidify a plane',
     'author': 'Coleman Krawczyk',
-    'version': (3, 0),
+    'version': (3, 7),
     'blender': (2, 76, 0),
     'location': 'View3D > Tools > Mesh Edit',
     'category': 'Mesh',
