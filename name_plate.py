@@ -9,7 +9,7 @@ bl_info = {
     'description': 'Make a name plate for Tactile Universe model',
     'author': 'Coleman Krawczyk',
     'version': (1, 0),
-    'blender': (2, 76, 0),
+    'blender': (2, 80, 0),
     'location': 'View3D > Add > Mesh > New Object',
     'category': 'Mesh',
 }
@@ -92,7 +92,7 @@ class NamePlate(bpy.types.Operator):
 
     def remove_name_plate(self):
         if self.name_plate_object_key in bpy.data.objects.keys():
-            self.name_plate.select = True
+            bpy.data.objects[self.name_plate_object_key].select_set(True)
             bpy.ops.object.delete()
 
     def make_name_plate_flat(self):
@@ -130,7 +130,7 @@ class NamePlate(bpy.types.Operator):
         ]
         me = bpy.data.meshes.new(self.name_plate_mesh_key)
         self.name_plate = bpy.data.objects.new(self.name_plate_object_key, me)
-        bpy.context.scene.objects.link(self.name_plate)
+        bpy.context.scene.collection.objects.link(self.name_plate)
         me.from_pydata(verts, [], faces)
         me.update()
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
@@ -208,14 +208,14 @@ class NamePlate(bpy.types.Operator):
         ]
         me = bpy.data.meshes.new(self.name_plate_mesh_key)
         self.name_plate = bpy.data.objects.new(self.name_plate_object_key, me)
-        bpy.context.scene.objects.link(self.name_plate)
+        bpy.context.scene.collection.objects.link(self.name_plate)
         me.from_pydata(verts, [], faces)
         me.update()
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
         R = Matrix.Rotation(math.radians(180), 4, Vector((0, 0, 1)))
         T = Matrix.Translation(self.location)
-        TRT = T * R * T.inverted()
-        self.name_plate.location = TRT * self.name_plate.location
+        TRT = T @ R @ T.inverted()
+        self.name_plate.location = TRT @ self.name_plate.location
         self.name_plate.rotation_euler.rotate(TRT)
 
     def make_font(self):
@@ -223,13 +223,16 @@ class NamePlate(bpy.types.Operator):
             self.font_curve = bpy.data.curves.new(type="FONT", name=self.text_cure_key)
             self.font_curve.extrude = 1
             self.font_object = bpy.data.objects.new(self.text_object_key, self.font_curve)
-            bpy.context.scene.objects.link(self.font_object)
+            bpy.context.scene.collection.objects.link(self.font_object)
             bpy.context.scene.update()
+        else:
+            self.font_object = bpy.data.objects[self.text_object_key]
+            self.font_curve = bpy.data.curves[self.text_curve_key]
         self.font_curve.size = self.Text_size
         self.font_object.data.body = self.Text
-        self.font_object.select = True
-        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        self.font_object.select = False
+        self.font_object.select_set(True)
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+        self.font_object.select_set(False)
         self.font_object.location = Vector((
             self.location[0],
             self.location[1],
@@ -256,12 +259,12 @@ def add_object_button(self, context):
 
 def register():
     bpy.utils.register_class(NamePlate)
-    bpy.types.INFO_MT_mesh_add.append(add_object_button)
+    bpy.types.VIEW3D_MT_mesh_add.append(add_object_button)
 
 
 def unregister():
     bpy.utils.unregister_class(NamePlate)
-    bpy.types.INFO_MT_mesh_add.remove(add_object_button)
+    bpy.types.VIEW3D_MT_mesh_add.remove(add_object_button)
 
 
 if __name__ == '__main__':

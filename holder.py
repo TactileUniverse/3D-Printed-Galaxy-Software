@@ -7,8 +7,8 @@ bl_info = {
     'name': 'Tactile Universe model holder',
     'description': 'Make a holder for Tactile Universe models',
     'author': 'Coleman Krawczyk',
-    'version': (1, 0),
-    'blender': (2, 76, 0),
+    'version': (2, 0),
+    'blender': (2, 80, 0),
     'location': 'View3D > Add > Mesh > New Object',
     'category': 'Mesh',
 }
@@ -81,7 +81,7 @@ class Holder(bpy.types.Operator):
     def remove_by_name(self, name):
         if name in bpy.data.objects.keys():
             obj = bpy.data.objects[name]
-            obj.select = True
+            obj.select_set(True)
             bpy.ops.object.delete()
 
     def make_rectangle(self, corner, size, name='rectangle'):
@@ -115,12 +115,12 @@ class Holder(bpy.types.Operator):
         ]
         me = bpy.data.meshes.new(name_mesh)
         rectangle = bpy.data.objects.new(name, me)
-        bpy.context.scene.objects.link(rectangle)
+        bpy.context.scene.collection.objects.link(rectangle)
         me.from_pydata(verts, [], faces)
         me.update()
-        rectangle.select = True
+        rectangle.select_set(True)
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        rectangle.select = False
+        rectangle.select_set(False)
         return rectangle
 
     def make_diag(self, y='front', x='left', name='diag'):
@@ -172,12 +172,12 @@ class Holder(bpy.types.Operator):
             ]
         me = bpy.data.meshes.new(name_mesh)
         diag = bpy.data.objects.new(name, me)
-        bpy.context.scene.objects.link(diag)
+        bpy.context.scene.collection.objects.link(diag)
         me.from_pydata(verts, [], faces)
         me.update()
-        diag.select = True
+        diag.select_set(True)
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        diag.select = False
+        diag.select_set(False)
         return diag
 
     def execute(self, context):
@@ -359,7 +359,7 @@ class Holder(bpy.types.Operator):
         ))
         bpy.ops.object.select_all(action='TOGGLE')
         for lid_rectangle in self.lid:
-            lid_rectangle.select = False
+            lid_rectangle.select_set(False)
         return {'FINISHED'}
 
 
@@ -373,12 +373,12 @@ def add_object_button(self, context):
 
 def register():
     bpy.utils.register_class(Holder)
-    bpy.types.INFO_MT_mesh_add.append(add_object_button)
+    bpy.types.VIEW3D_MT_mesh_add.append(add_object_button)
 
 
 def unregister():
     bpy.utils.unregister_class(Holder)
-    bpy.types.INFO_MT_mesh_add.remove(add_object_button)
+    bpy.types.VIEW3D_MT_mesh_add.remove(add_object_button)
 
 
 if __name__ == '__main__':

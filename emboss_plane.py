@@ -8,9 +8,9 @@ bl_info = {
     'name': 'Emboss plane',
     'description': 'Emboss and solidify a plane',
     'author': 'Coleman Krawczyk',
-    'version': (3, 7),
-    'blender': (2, 76, 0),
-    'location': 'View3D > Tools > Mesh Edit',
+    'version': (3, 0),
+    'blender': (2, 80, 0),
+    'location': 'View3D > Menu > Mesh Edit',
     'category': 'Mesh',
 }
 
@@ -24,7 +24,7 @@ class EmbossPlane(bpy.types.Operator):
 
     Fpu = FloatProperty(
         name='Faces per unit',
-        default=2,
+        default=0.1,
         min=0,
         description='Number of faces per unit length across the top of the plane'
     )
@@ -91,15 +91,15 @@ class EmbossPlane(bpy.types.Operator):
         else:
             R = Matrix.Rotation(math.radians(90), 4, Vector((0, 0, 1)))
         T = Matrix.Translation(self.object.location)
-        self.external_rot = T * R * T.inverted()
+        self.external_rot = T @ R @ T.inverted()
 
     def remove_wedge(self):
         bpy.ops.object.editmode_toggle()
         if 'wedge' in bpy.data.objects.keys():
-            self.object.select = False
-            self.wedge.select = True
+            self.object.select_set(False)
+            bpy.data.objects['wedge'].select_set(True)
             bpy.ops.object.delete()
-            self.object.select = True
+            self.object.select_set(True)
         bpy.ops.object.editmode_toggle()
 
     def make_wedge(self):
@@ -157,28 +157,28 @@ class EmbossPlane(bpy.types.Operator):
         ]
         me = bpy.data.meshes.new('wedge')
         self.wedge = bpy.data.objects.new('wedge', me)
-        bpy.context.scene.objects.link(self.wedge)
+        bpy.context.scene.collection.objects.link(self.wedge)
         me.from_pydata(verts, [], faces)
         me.update()
         bpy.ops.object.editmode_toggle()
-        self.wedge.select = True
-        self.object.select = False
-        bpy.context.scene.objects.active = self.wedge
+        self.wedge.select_set(True)
+        self.object.select_set(False)
+        bpy.context.view_layer.objects.active = self.wedge
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        self.wedge.location = self.external_rot * self.wedge.location
+        self.wedge.location = self.external_rot @ self.wedge.location
         self.wedge.rotation_euler.rotate(self.external_rot)
-        bpy.context.scene.objects.active = self.object
-        self.wedge.select = False
-        self.object.select = True
+        bpy.context.view_layer.objects.active = self.object
+        self.wedge.select_set(False)
+        self.object.select_set(True)
         bpy.ops.object.editmode_toggle()
 
     def remove_external_edge(self):
         bpy.ops.object.editmode_toggle()
         if 'ExternalEdge' in bpy.data.objects.keys():
-            self.object.select = False
-            self.external_edge.select = True
+            self.object.select_set(False)
+            bpy.data.objects['ExternalEdge'].select_set(True)
             bpy.ops.object.delete()
-            self.object.select = True
+            self.object.select_set(True)
         bpy.ops.object.editmode_toggle()
 
     def make_external_edge(self):
@@ -254,19 +254,19 @@ class EmbossPlane(bpy.types.Operator):
         ]
         me = bpy.data.meshes.new('ExternalEdgeMesh')
         self.external_edge = bpy.data.objects.new('ExternalEdge', me)
-        bpy.context.scene.objects.link(self.external_edge)
+        bpy.context.scene.collection.objects.link(self.external_edge)
         me.from_pydata(verts, [], faces)
         me.update()
         bpy.ops.object.editmode_toggle()
-        self.external_edge.select = True
-        self.object.select = False
-        bpy.context.scene.objects.active = self.external_edge
+        self.external_edge.select_set(True)
+        self.object.select_set(False)
+        bpy.context.view_layer.objects.active = self.external_edge
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        self.external_edge.location = self.external_rot * self.external_edge.location
+        self.external_edge.location = self.external_rot @ self.external_edge.location
         self.external_edge.rotation_euler.rotate(self.external_rot)
-        bpy.context.scene.objects.active = self.object
-        self.external_edge.select = False
-        self.object.select = True
+        bpy.context.view_layer.objects.active = self.object
+        self.external_edge.select_set(False)
+        self.object.select_set(True)
         bpy.ops.object.editmode_toggle()
 
     def update_external(self):
@@ -347,9 +347,33 @@ class EmbossPlane(bpy.types.Operator):
         self.report({'INFO'}, '{0} total faces'.format(nx * ny))
 
         # make loop cuts
-        bpy.context.area.type = 'VIEW_3D'
-        bpy.ops.mesh.loopcut_slide(MESH_OT_loopcut={'number_cuts': nx, 'edge_index': 0})
-        bpy.ops.mesh.loopcut_slide(MESH_OT_loopcut={'number_cuts': ny, 'edge_index': 1})
+        areas3D = [area for area in context.window.screen.areas if area.type == 'VIEW_3D']
+        region = [region for region in areas3D[0].regions if region.type == 'WINDOW']
+        for r in region:
+            override = {
+                'window': context.window,
+                'screen': context.window.screen,
+                'area': areas3D[0],
+                'region': r,
+                'scene': context.scene
+            }
+            try:
+                bpy.ops.mesh.loopcut(
+                    override,
+                    number_cuts=nx,
+                    object_index=object.pass_index,
+                    edge_index=0
+                )
+                bpy.ops.mesh.loopcut(
+                    override,
+                    number_cuts=ny,
+                    object_index=object.pass_index,
+                    edge_index=1
+                )
+                break
+            except RuntimeError:
+                continue
+
         bpy.ops.mesh.select_all(action='TOGGLE')
 
         # make vertex groups
@@ -357,7 +381,7 @@ class EmbossPlane(bpy.types.Operator):
         verts = [v.index for v in bm.verts]
         vgk = self.object.vertex_groups.keys()
         if 'emboss' not in vgk:
-            self.object.vertex_groups.new('emboss')
+            self.object.vertex_groups.new(name='emboss')
         bpy.ops.object.editmode_toggle()
         for v, w in zip(verts, vertex_weights):
             self.object.vertex_groups['emboss'].add([v], w, 'REPLACE')
@@ -394,21 +418,25 @@ class EmbossPlane(bpy.types.Operator):
         if 'Displacement' not in tex:
             iTex = bpy.data.textures.new('Displacement', type='IMAGE')
             iTex.image = bpy.data.images[0]  # assume last image loaded is the correct one
+        else:
+            iTex = bpy.data.textures['Displacement']
         if 'bump' not in mod:
             displace = self.object.modifiers.new(name='bump', type='DISPLACE')
             displace.texture = iTex
-            displace.mid_level = 1 * invert_multiplyer
             displace.direction = 'Z'
+            displace.mid_level = 1 * invert_multiplyer
             displace.vertex_group = 'emboss'
             displace.texture_coords = 'UV'
             displace.strength = self.Emboss_height * invert_multiplyer
             displace.show_in_editmode = True
+            displace.show_on_cage = True
         else:
             displace = self.object.modifiers['bump']
             displace.strength = self.Emboss_height * invert_multiplyer
             displace.mid_level = 1 * invert_multiplyer
         if 'smooth' not in mod:
             subsurf = self.object.modifiers.new(name='smooth', type='SUBSURF')
+            subsurf.quality = 1
             subsurf.show_viewport = False
             subsurf.levels = 2
         else:
@@ -422,7 +450,8 @@ class EmbossPlane(bpy.types.Operator):
             self.make_external_edge()
         else:
             self.remove_external_edge()
-        subsurf.show_viewport = True
+            self.remove_wedge()
+        # subsurf.show_viewport = True
         return {'FINISHED'}
 
     @classmethod
@@ -441,11 +470,12 @@ def add_object_button(self, context):
 
 def register():
     bpy.utils.register_class(EmbossPlane)
-    bpy.types.VIEW3D_PT_tools_meshedit.append(add_object_button)
+    bpy.types.VIEW3D_MT_edit_mesh.append(add_object_button)
 
 
 def unregister():
     bpy.utils.unregister_class(EmbossPlane)
+    bpy.types.VIEW3D_MT_edit_mesh.remove(add_object_button)
 
 
 if __name__ == '__main__':
