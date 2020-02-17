@@ -399,7 +399,10 @@ class EmbossPlane(bpy.types.Operator):
         bound_edges = [e for e in bm.edges if e.is_boundary]
         bound_edges_index += [e.index for e in bound_edges]
         bmesh.ops.translate(bm, vec=extrude_normal, verts=bound_verts)
-        bmesh.ops.edgeloop_fill(bm, edges=bound_edges)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        for e in bound_edges:
+            e.select = True
+        bpy.ops.mesh.fill_grid()
 
         # set crease on boundary
         bpy.ops.object.editmode_toggle()
@@ -437,7 +440,7 @@ class EmbossPlane(bpy.types.Operator):
         if 'smooth' not in mod:
             subsurf = self.object.modifiers.new(name='smooth', type='SUBSURF')
             subsurf.quality = 1
-            subsurf.show_viewport = False
+            subsurf.show_viewport = True
             subsurf.levels = 2
         else:
             subsurf = self.object.modifiers['smooth']
