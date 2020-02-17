@@ -24,7 +24,7 @@ class EmbossPlane(bpy.types.Operator):
 
     Fpu = FloatProperty(
         name='Faces per unit',
-        default=0.1,
+        default=2.0,
         min=0,
         description='Number of faces per unit length across the top of the plane'
     )
