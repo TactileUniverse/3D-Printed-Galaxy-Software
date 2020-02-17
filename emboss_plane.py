@@ -24,7 +24,7 @@ class EmbossPlane(bpy.types.Operator):
 
     Fpu = FloatProperty(
         name='Faces per unit',
-        default=2.0,
+        default=2,
         min=0,
         description='Number of faces per unit length across the top of the plane'
     )
@@ -403,9 +403,12 @@ class EmbossPlane(bpy.types.Operator):
         for e in bound_edges:
             e.select = True
         bpy.ops.mesh.fill_grid()
+        bottom_face_verts_index = [v.index for v in bm.verts if v.select]
+        bpy.ops.mesh.select_all(action='DESELECT')
 
         # set crease on boundary
         bpy.ops.object.editmode_toggle()
+        self.object.vertex_groups['emboss'].remove(bottom_face_verts_index)
         self.object.vertex_groups['emboss'].remove(bound_verts_index)
         for idx in bound_edges_index:
             self.object.data.edges[idx].select = True
