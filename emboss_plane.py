@@ -78,14 +78,14 @@ class EmbossPlane(bpy.types.Operator):
     )
     Spike_threshold = FloatProperty(
         name='Spike Threshold',
-        default=0.75,
+        default=0.3,
         min=0,
         unit='LENGTH',
         description='A single vertex that has a hight difference of at least this threshold from all of its neighbors is flagged as a spike'
     )
     Spike_reduction_factor = FloatProperty(
         name='Spike Reduction Factor',
-        default=0.75,
+        default=1.5,
         min=0,
         description='Identified spikes will have their hight lowered by this fraction'
     )
@@ -345,19 +345,28 @@ class EmbossPlane(bpy.types.Operator):
 
     def flatten_spikes(self, context):
         bm = self.get_bm()
+
+        # get a vertex list for "emboss" group
+        bpy.ops.object.vertex_group_set_active(group='emboss')
+        bpy.ops.object.vertex_group_select()
+        verts_emboss = [v.index for v in bm.verts if v.select]
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        # make copy of mesh with modifiers applies
         depsgraph = context.evaluated_depsgraph_get()
         bm_mod = bmesh.new()
         bm_mod.from_object(self.object, depsgraph)
         bm_mod.verts.ensure_lookup_table()
-        for v in bm.verts:
-            z = bm_mod.verts[v.index].co.z
-            # z = v.co.z
+
+        # loop over emboss group looking for spikes
+        for v_index in verts_emboss:
+            v = bm.verts[v_index]
+            z = bm_mod.verts[v_index].co.z
             other_z_dif = 0
             other_z_count = 0
             spike = True
             for e in v.link_edges:
                 other_z = bm_mod.verts[e.other_vert(v).index].co.z
-                # other_z = e.other_vert(v).co.z
                 if abs(z - other_z) < self.Spike_threshold:
                     spike = False
                 else:
@@ -367,7 +376,10 @@ class EmbossPlane(bpy.types.Operator):
                 # Select the spikes to make them easy to see
                 v.select = True
                 average_dif = other_z_dif / other_z_count
-                v.co.z -= self.Spike_reduction_factor * average_dif
+                if self.Invert_image:
+                    v.co.z += self.Spike_reduction_factor * average_dif
+                else:
+                    v.co.z -= self.Spike_reduction_factor * average_dif
         self.object.data.update()
 
     def execute(self, context):
@@ -502,7 +514,7 @@ class EmbossPlane(bpy.types.Operator):
             self.remove_external_edge()
             self.remove_wedge()
 
-        # Deselect everything
+        # Deselect all verts
         bpy.ops.mesh.select_all(action='DESELECT')
 
         # remove spikes
