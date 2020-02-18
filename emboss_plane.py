@@ -70,6 +70,12 @@ class EmbossPlane(bpy.types.Operator):
             ('BOTTOM', 'bottom', '')
         ]
     )
+    Noise_filter: FloatProperty(
+        name='Noise Filter Size',
+        default=1,
+        min=1,
+        description='Smooth out noise in the image'
+    )
     Spike_removal: BoolProperty(
         name='Spike Removal',
         default=False,
@@ -502,6 +508,7 @@ class EmbossPlane(bpy.types.Operator):
             iTex.image = bpy.data.images[0]  # assume last image loaded is the correct one
         else:
             iTex = bpy.data.textures['Displacement']
+        iTex.filter_size = self.Noise_filter
         if 'bump' not in mod:
             displace = self.object.modifiers.new(name='bump', type='DISPLACE')
             displace.texture = iTex
