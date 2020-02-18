@@ -22,32 +22,32 @@ class EmbossPlane(bpy.types.Operator):
     bl_label = 'Emboss and solidify a plane'
     bl_options = {'REGISTER', 'UNDO'}
 
-    Fpu = FloatProperty(
+    Fpu: FloatProperty(
         name='Faces per unit',
         default=2,
         min=0,
         description='Number of faces per unit length across the top of the plane'
     )
-    Emboss_height = FloatProperty(
+    Emboss_height: FloatProperty(
         name='Emboss thickness',
         default=3,
         min=0.1,
         unit='LENGTH',
         description='The Emboss height for the model'
     )
-    Invert_image = BoolProperty(
+    Invert_image: BoolProperty(
         name='Invert image',
         default=False,
         description='Invert the emboss direction'
     )
-    Base_height = FloatProperty(
+    Base_height: FloatProperty(
         name='Base Thickness',
         default=3,
         min=0.1,
         unit='LENGTH',
         description="Thickness of the model's base"
     )
-    Border_width = FloatProperty(
+    Border_width: FloatProperty(
         name='Border width',
         default=3,
         min=0.1,
@@ -59,7 +59,7 @@ class EmbossPlane(bpy.types.Operator):
     External_my = False
     External_x = False
     External_mx = False
-    External_edge = EnumProperty(
+    External_edge: EnumProperty(
         name='External Edge',
         description='Select what edge should be made external (if any)',
         default='NONE',
@@ -71,19 +71,19 @@ class EmbossPlane(bpy.types.Operator):
             ('BOTTOM', 'bottom', '')
         ]
     )
-    Spike_removal = BoolProperty(
+    Spike_removal: BoolProperty(
         name='Spike Removal',
         default=False,
         description='Remove sharp spikes from the model'
     )
-    Spike_threshold = FloatProperty(
+    Spike_threshold: FloatProperty(
         name='Spike Threshold',
         default=0.3,
         min=0,
         unit='LENGTH',
         description='A single vertex that has a hight difference of at least this threshold from all of its neighbors is flagged as a spike'
     )
-    Spike_reduction_factor = FloatProperty(
+    Spike_reduction_factor: FloatProperty(
         name='Spike Reduction Factor',
         default=1.5,
         min=0,

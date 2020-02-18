@@ -22,14 +22,14 @@ class Holder(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     class_counter = 0
 
-    Number_slots = IntProperty(
+    Number_slots: IntProperty(
         name='Number of slots',
         default=10,
         min=1,
         description='Number of slots the holder should have'
     )
 
-    Width_slots = FloatProperty(
+    Width_slots: FloatProperty(
         name='Width of slots',
         default=20,
         min=1,
@@ -37,7 +37,7 @@ class Holder(bpy.types.Operator):
         description='Width of the slots in the holder'
     )
 
-    Height_models = FloatProperty(
+    Height_models: FloatProperty(
         name='Height of models',
         default=132,
         min=1,
@@ -45,7 +45,7 @@ class Holder(bpy.types.Operator):
         description='The height of the models to be held'
     )
 
-    Length_models = FloatProperty(
+    Length_models: FloatProperty(
         name='Length of models',
         default=112,
         min=1,
@@ -53,7 +53,7 @@ class Holder(bpy.types.Operator):
         description='The length of the models to be held'
     )
 
-    Thickness_slats = FloatProperty(
+    Thickness_slats: FloatProperty(
         name='Thickness of slot walls',
         default=2,
         min=1,
@@ -61,12 +61,12 @@ class Holder(bpy.types.Operator):
         description='Thickness of slot walls'
     )
 
-    Thickness_walls = FloatProperty(
+    Thickness_walls: FloatProperty(
         name='Thickness of outside walls',
         default=5,
         min=1,
         unit='LENGTH',
-        description='Thicknesss of outside walls'
+        description='Thickness of outside walls'
     )
 
     def __init__(self, *args, **kwargs):

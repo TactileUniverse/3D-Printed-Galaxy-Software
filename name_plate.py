@@ -23,51 +23,51 @@ class NamePlate(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     class_counter = 0
 
-    Size_x = FloatProperty(
+    Size_x: FloatProperty(
         name='Size X',
         default=112,
         min=0,
         unit='LENGTH',
         description='Size of name plate in the X direction'
     )
-    Size_y = FloatProperty(
+    Size_y: FloatProperty(
         name='Size Y',
         default=20,
         min=0,
         unit='LENGTH',
         description='Size of name plate in the Y direction'
     )
-    Size_z = FloatProperty(
+    Size_z: FloatProperty(
         name='Size Z',
         default=6,
         min=0,
         unit='LENGTH',
         description='Size of name plate in the Z direction'
     )
-    Text = StringProperty(
+    Text: StringProperty(
         name='Text',
         default='Example',
         description='Text to put on the name plate'
     )
-    Text_size = FloatProperty(
+    Text_size: FloatProperty(
         name='Text size',
         default=18,
         min=0,
         description='Size of the text'
     )
-    Notches = BoolProperty(
+    Notches: BoolProperty(
         name='Notches',
         default=False,
         description='Add notches to the name plate for attaching to the base model'
     )
-    Base_height = FloatProperty(
+    Base_height: FloatProperty(
         name='Base height',
         default=3,
         min=0,
         unit='LENGTH',
         description='This should match the "Base Thickness" value from Emboss Plane'
     )
-    Border_width = FloatProperty(
+    Border_width: FloatProperty(
         name='Border width',
         default=3,
         min=0,
