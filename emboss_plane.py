@@ -59,7 +59,6 @@ class EmbossPlane(bpy.types.Operator):
     External_my = False
     External_x = False
     External_mx = False
-
     External_edge = EnumProperty(
         name='External Edge',
         description='Select what edge should be made external (if any)',
@@ -71,6 +70,24 @@ class EmbossPlane(bpy.types.Operator):
             ('TOP', 'top', ''),
             ('BOTTOM', 'bottom', '')
         ]
+    )
+    Spike_removal = BoolProperty(
+        name='Spike Removal',
+        default=False,
+        description='Remove sharp spikes from the model'
+    )
+    Spike_threshold = FloatProperty(
+        name='Spike Threshold',
+        default=0.75,
+        min=0,
+        unit='LENGTH',
+        description='A single vertex that has a hight difference of at least this threshold from all of its neighbors is flagged as a spike'
+    )
+    Spike_reduction_factor = FloatProperty(
+        name='Spike Reduction Factor',
+        default=0.75,
+        min=0,
+        description='Identified spikes will have their hight lowered by this fraction'
     )
 
     def get_bm(self):
@@ -326,6 +343,33 @@ class EmbossPlane(bpy.types.Operator):
                 ym_weight = 1 - ((ym1 - y) / fac)
             return min([x_weight, xm_weight, y_weight, ym_weight])
 
+    def flatten_spikes(self, context):
+        bm = self.get_bm()
+        depsgraph = context.evaluated_depsgraph_get()
+        bm_mod = bmesh.new()
+        bm_mod.from_object(self.object, depsgraph)
+        bm_mod.verts.ensure_lookup_table()
+        for v in bm.verts:
+            z = bm_mod.verts[v.index].co.z
+            # z = v.co.z
+            other_z_dif = 0
+            other_z_count = 0
+            spike = True
+            for e in v.link_edges:
+                other_z = bm_mod.verts[e.other_vert(v).index].co.z
+                # other_z = e.other_vert(v).co.z
+                if abs(z - other_z) < self.Spike_threshold:
+                    spike = False
+                else:
+                    other_z_dif += abs(z - other_z)
+                    other_z_count += 1
+            if spike:
+                # Select the spikes to make them easy to see
+                v.select = True
+                average_dif = other_z_dif / other_z_count
+                v.co.z -= self.Spike_reduction_factor * average_dif
+        self.object.data.update()
+
     def execute(self, context):
         object = context.active_object
         name = object.name
@@ -447,7 +491,7 @@ class EmbossPlane(bpy.types.Operator):
             subsurf.levels = 2
         else:
             subsurf = self.object.modifiers['smooth']
-            subsurf.show_viewport = False
+            subsurf.show_viewport = True
 
         # if external edge create wedge and edge
         if self.External_edge != 'NONE':
@@ -457,7 +501,14 @@ class EmbossPlane(bpy.types.Operator):
         else:
             self.remove_external_edge()
             self.remove_wedge()
-        # subsurf.show_viewport = True
+
+        # Deselect everything
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        # remove spikes
+        if self.Spike_removal:
+            self.flatten_spikes(context)
+
         return {'FINISHED'}
 
     @classmethod
