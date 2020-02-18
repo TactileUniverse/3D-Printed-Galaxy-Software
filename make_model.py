@@ -75,7 +75,6 @@ name = bpy.context.active_object.name
 bpy.ops.object.editmode_toggle()
 bpy.ops.object.emboss_plane(override, **config['emboss_plane_keywords'])
 bpy.ops.object.editmode_toggle()
-bpy.data.textures['Displacement'].filter_size = config['filter_size']
 
 base_path = os.path.join(
     config['output_path'],
