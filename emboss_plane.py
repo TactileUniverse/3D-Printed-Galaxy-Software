@@ -54,7 +54,6 @@ class EmbossPlane(bpy.types.Operator):
         unit='LENGTH',
         description='Width of the border'
     )
-    Theta = math.radians(90)
     External_y = False
     External_my = False
     External_x = False
@@ -78,14 +77,14 @@ class EmbossPlane(bpy.types.Operator):
     )
     Spike_threshold: FloatProperty(
         name='Spike Threshold',
-        default=0.3,
+        default=0.75,
         min=0,
         unit='LENGTH',
         description='A single vertex that has a hight difference of at least this threshold from all of its neighbors is flagged as a spike'
     )
     Spike_reduction_factor: FloatProperty(
         name='Spike Reduction Factor',
-        default=1.5,
+        default=0.75,
         min=0,
         description='Identified spikes will have their hight lowered by this fraction'
     )
@@ -111,30 +110,38 @@ class EmbossPlane(bpy.types.Operator):
         self.external_rot = T @ R @ T.inverted()
 
     def remove_wedge(self):
-        bpy.ops.object.editmode_toggle()
         if 'wedge' in bpy.data.objects.keys():
+            bpy.ops.object.editmode_toggle()
             self.object.select_set(False)
             bpy.data.objects['wedge'].select_set(True)
             bpy.ops.object.delete()
             self.object.select_set(True)
-        bpy.ops.object.editmode_toggle()
+            bpy.ops.object.editmode_toggle()
 
-    def make_wedge(self):
+    def make_wedge(
+            self,
+            object_location,
+            lx,
+            ly,
+            Border_width,
+            Emboss_height,
+            Base_height
+        ):
         self.remove_wedge()
-        shift = 0.25 * self.lx
+        shift = 0.25 * lx
         x = [
-            self.object.location[0] - 2.25,
-            self.object.location[0] + 2.25,
-            self.object.location[0] - 1.125,
-            self.object.location[0] + 1.125
+            object_location[0] - 2.25,
+            object_location[0] + 2.25,
+            object_location[0] - 1.125,
+            object_location[0] + 1.125
         ]
         y = [
-            self.object.location[1] + (0.5 * self.ly) + (2 * self.Border_width / 3),
-            self.object.location[1] + (0.5 * self.ly) - self.Border_width
+            object_location[1] + (0.5 * ly) + (2 * Border_width / 3),
+            object_location[1] + (0.5 * ly) - Border_width
         ]
         z = [
-            self.object.location[2] - self.Emboss_height - 0.05,
-            self.object.location[2] - self.Emboss_height - self.Base_height + 0.05
+            object_location[2] - Emboss_height - 0.05,
+            object_location[2] - Emboss_height - Base_height + 0.05
         ]
         verts = [
             Vector((x[0] + shift, y[0], z[0])),
@@ -190,37 +197,45 @@ class EmbossPlane(bpy.types.Operator):
         bpy.ops.object.editmode_toggle()
 
     def remove_external_edge(self):
-        bpy.ops.object.editmode_toggle()
         if 'ExternalEdge' in bpy.data.objects.keys():
+            bpy.ops.object.editmode_toggle()
             self.object.select_set(False)
             bpy.data.objects['ExternalEdge'].select_set(True)
             bpy.ops.object.delete()
             self.object.select_set(True)
-        bpy.ops.object.editmode_toggle()
+            bpy.ops.object.editmode_toggle()
 
-    def make_external_edge(self):
+    def make_external_edge(
+            self,
+            object_location,
+            lx,
+            ly,
+            Border_width,
+            Emboss_height,
+            Base_height
+        ):
         self.remove_external_edge()
         x = [
-            self.object.location[0] - (0.5 * self.lx),
-            self.object.location[0] + (0.5 * self.lx),
-            self.object.location[0] + (0.25 * self.lx) - 1.75,
-            self.object.location[0] + (0.25 * self.lx) + 1.75,
-            self.object.location[0] + (0.25 * self.lx) - 3.5,
-            self.object.location[0] + (0.25 * self.lx) + 3.5,
-            self.object.location[0] - (0.25 * self.lx) - 1.75,
-            self.object.location[0] - (0.25 * self.lx) + 1.75,
-            self.object.location[0] - (0.25 * self.lx) - 3.5,
-            self.object.location[0] - (0.25 * self.lx) + 3.5
+            object_location[0] - (0.5 * lx),
+            object_location[0] + (0.5 * lx),
+            object_location[0] + (0.25 * lx) - 1.75,
+            object_location[0] + (0.25 * lx) + 1.75,
+            object_location[0] + (0.25 * lx) - 3.5,
+            object_location[0] + (0.25 * lx) + 3.5,
+            object_location[0] - (0.25 * lx) - 1.75,
+            object_location[0] - (0.25 * lx) + 1.75,
+            object_location[0] - (0.25 * lx) - 3.5,
+            object_location[0] - (0.25 * lx) + 3.5
         ]
         y = [
-            self.object.location[1] - (0.5 * self.ly) + self.Border_width,
-            self.object.location[1] - (0.5 * self.ly),
-            self.object.location[1] - (0.5 * self.ly) + (self.Border_width / 3)
+            object_location[1] - (0.5 * ly) + Border_width,
+            object_location[1] - (0.5 * ly),
+            object_location[1] - (0.5 * ly) + (Border_width / 3)
         ]
         z = [
-            self.object.location[2] + 3,
-            self.object.location[2] + 3 + self.Emboss_height + self.Base_height,
-            self.object.location[2] + 3 + self.Base_height
+            object_location[2] + 3,
+            object_location[2] + 3 + Emboss_height + Base_height,
+            object_location[2] + 3 + Base_height
         ]
         verts = [
             Vector((x[0], y[0], z[0])),
@@ -300,50 +315,45 @@ class EmbossPlane(bpy.types.Operator):
         elif self.External_edge == 'BOTTOM':
             self.External_my = True
 
-    def get_weight(self, vert):
+    def get_weight(
+            self,
+            vert,
+            object_location,
+            lx,
+            ly,
+            Border_width,
+            External_y,
+            External_my,
+            External_x,
+            External_mx
+        ):
         x, y, _ = vert.co
-        x0, y0, _ = self.object.location
+        x0, y0, _ = object_location
         x = x + x0
         y = y + y0
-        fac = self.Emboss_height / math.tan(self.Theta)
-        x3 = x0 + (0.5 * self.lx)
-        x2 = x3 - self.Border_width
-        x1 = x2 - fac
-        y3 = y0 + (0.5 * self.ly)
-        y2 = y3 - self.Border_width
-        y1 = y2 - fac
-        xm3 = x0 - (0.5 * self.lx)
-        xm2 = xm3 + self.Border_width
-        xm1 = xm2 + fac
-        ym3 = y0 - (0.5 * self.ly)
-        ym2 = ym3 + self.Border_width
-        ym1 = ym2 + fac
-        if (not self.External_y and (y > y2)) or \
-           (not self.External_my and (y < ym2)) or \
-           (not self.External_x and (x > x2)) or \
-           (not self.External_mx and (x < xm2)):
+        x2 = x0 + (0.5 * lx)
+        x1 = x2 - Border_width
+        y2 = y0 + (0.5 * ly)
+        y1 = y2 - Border_width
+        xm2 = x0 - (0.5 * lx)
+        xm1 = xm2 + Border_width
+        ym2 = y0 - (0.5 * ly)
+        ym1 = ym2 + Border_width
+        if (not External_y and (y > y1)) or \
+           (not External_my and (y < ym1)) or \
+           (not External_x and (x > x1)) or \
+           (not External_mx and (x < xm1)):
             return 0
-        elif (self.External_y or (y < y1)) and \
-             (self.External_my or (y > ym1)) and \
-             (self.External_x or (x < x1)) and \
-             (self.External_mx or (x > xm1)):
-            return 1
         else:
-            x_weight = 1
-            xm_weight = 1
-            y_weight = 1
-            ym_weight = 1
-            if not self.External_x:
-                x_weight = 1 - ((x - x1) / fac)
-            if not self.External_mx:
-                xm_weight = 1 - ((xm1 - x) / fac)
-            if not self.External_y:
-                y_weight = 1 - ((y - y1) / fac)
-            if not self.External_my:
-                ym_weight = 1 - ((ym1 - y) / fac)
-            return min([x_weight, xm_weight, y_weight, ym_weight])
+            return 1
 
-    def flatten_spikes(self, context):
+    def flatten_spikes(
+            self,
+            context,
+            Spike_threshold,
+            Spike_reduction_factor,
+            Invert_image
+        ):
         bm = self.get_bm()
 
         # get a vertex list for "emboss" group
@@ -367,7 +377,7 @@ class EmbossPlane(bpy.types.Operator):
             spike = True
             for e in v.link_edges:
                 other_z = bm_mod.verts[e.other_vert(v).index].co.z
-                if abs(z - other_z) < self.Spike_threshold:
+                if abs(z - other_z) < Spike_threshold:
                     spike = False
                 else:
                     other_z_dif += abs(z - other_z)
@@ -376,10 +386,10 @@ class EmbossPlane(bpy.types.Operator):
                 # Select the spikes to make them easy to see
                 v.select = True
                 average_dif = other_z_dif / other_z_count
-                if self.Invert_image:
-                    v.co.z += self.Spike_reduction_factor * average_dif
+                if Invert_image:
+                    v.co.z += Spike_reduction_factor * average_dif
                 else:
-                    v.co.z -= self.Spike_reduction_factor * average_dif
+                    v.co.z -= Spike_reduction_factor * average_dif
         self.object.data.update()
 
     def execute(self, context):
@@ -433,7 +443,17 @@ class EmbossPlane(bpy.types.Operator):
         bpy.ops.mesh.select_all(action='TOGGLE')
 
         # make vertex groups
-        vertex_weights = [self.get_weight(v) for v in bm.verts]
+        weight_args = (
+            self.object.location,
+            self.lx,
+            self.ly,
+            self.Border_width,
+            self.External_y,
+            self.External_my,
+            self.External_x,
+            self.External_mx
+        )
+        vertex_weights = [self.get_weight(v, *weight_args) for v in bm.verts]
         verts = [v.index for v in bm.verts]
         vgk = self.object.vertex_groups.keys()
         if 'emboss' not in vgk:
@@ -496,20 +516,20 @@ class EmbossPlane(bpy.types.Operator):
             displace = self.object.modifiers['bump']
             displace.strength = self.Emboss_height * invert_multiplyer
             displace.mid_level = 1 * invert_multiplyer
-        if 'smooth' not in mod:
-            subsurf = self.object.modifiers.new(name='smooth', type='SUBSURF')
-            subsurf.quality = 1
-            subsurf.show_viewport = True
-            subsurf.levels = 2
-        else:
-            subsurf = self.object.modifiers['smooth']
-            subsurf.show_viewport = True
 
         # if external edge create wedge and edge
         if self.External_edge != 'NONE':
+            make_args = (
+                self.object.location,
+                self.lx,
+                self.ly,
+                self.Border_width,
+                self.Emboss_height,
+                self.Base_height
+            )
             self.get_external_rot()
-            self.make_wedge()
-            self.make_external_edge()
+            self.make_wedge(*make_args)
+            self.make_external_edge(*make_args)
         else:
             self.remove_external_edge()
             self.remove_wedge()
@@ -517,9 +537,25 @@ class EmbossPlane(bpy.types.Operator):
         # Deselect all verts
         bpy.ops.mesh.select_all(action='DESELECT')
 
-        # remove spikes
+        # Spike removal
         if self.Spike_removal:
-            self.flatten_spikes(context)
+            # for spike removal temp remove the smoothing modifier
+            if 'smooth' in mod:
+                subsurf = self.object.modifiers['smooth']
+                self.object.modifiers.remove(subsurf)
+            self.flatten_spikes(
+                context,
+                self.Spike_threshold,
+                self.Spike_reduction_factor,
+                self.Invert_image
+            )
+
+        # Smooth surface
+        if 'smooth' not in mod:
+            subsurf = self.object.modifiers.new(name='smooth', type='SUBSURF')
+            subsurf.quality = 1
+            subsurf.show_viewport = True
+            subsurf.levels = 2
 
         return {'FINISHED'}
 
