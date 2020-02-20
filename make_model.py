@@ -3,7 +3,6 @@ import bmesh
 import json
 import sys
 import os
-import cProfile
 
 argv = sys.argv
 if '--' not in argv:
@@ -28,7 +27,6 @@ config.setdefault('emboss_plane_keywords', {})
 config.setdefault('output_path', os.getcwd())
 config.setdefault('output_name', 'output')
 config.setdefault('stl_keywords', {})
-config.setdefault('filter_size', 1.0)
 
 input_name = os.path.basename(config['input_file_path'])
 input_dir = os.path.dirname(config['input_file_path'])

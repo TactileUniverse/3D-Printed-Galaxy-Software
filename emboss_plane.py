@@ -115,14 +115,20 @@ class EmbossPlane(bpy.types.Operator):
         T = Matrix.Translation(self.object.location)
         self.external_rot = T @ R @ T.inverted()
 
-    def remove_wedge(self):
-        if 'wedge' in bpy.data.objects.keys():
-            bpy.ops.object.editmode_toggle()
-            self.object.select_set(False)
-            bpy.data.objects['wedge'].select_set(True)
-            bpy.ops.object.delete()
-            self.object.select_set(True)
-            bpy.ops.object.editmode_toggle()
+    def remove_external_object(self, name):
+        if name in bpy.data.objects.keys():
+            bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+
+    def set_external_location(self, name):
+        external_object = self.__getattribute__(name)
+        external_object.select_set(True)
+        self.object.select_set(False)
+        bpy.context.view_layer.objects.active = external_object
+        external_object.location = self.external_rot @ external_object.location
+        external_object.rotation_euler.rotate(self.external_rot)
+        bpy.context.view_layer.objects.active = self.object
+        external_object.select_set(False)
+        self.object.select_set(True)
 
     def make_wedge(
             self,
@@ -133,7 +139,7 @@ class EmbossPlane(bpy.types.Operator):
             Emboss_height,
             Base_height
         ):
-        self.remove_wedge()
+        self.remove_external_object('wedge')
         shift = 0.25 * lx
         x = [
             object_location[0] - 2.25,
@@ -187,29 +193,10 @@ class EmbossPlane(bpy.types.Operator):
         ]
         me = bpy.data.meshes.new('wedge')
         self.wedge = bpy.data.objects.new('wedge', me)
-        bpy.context.scene.collection.objects.link(self.wedge)
+        self.collection.objects.link(self.wedge)
         me.from_pydata(verts, [], faces)
         me.update()
-        bpy.ops.object.editmode_toggle()
-        self.wedge.select_set(True)
-        self.object.select_set(False)
-        bpy.context.view_layer.objects.active = self.wedge
-        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        self.wedge.location = self.external_rot @ self.wedge.location
-        self.wedge.rotation_euler.rotate(self.external_rot)
-        bpy.context.view_layer.objects.active = self.object
-        self.wedge.select_set(False)
-        self.object.select_set(True)
-        bpy.ops.object.editmode_toggle()
-
-    def remove_external_edge(self):
-        if 'ExternalEdge' in bpy.data.objects.keys():
-            bpy.ops.object.editmode_toggle()
-            self.object.select_set(False)
-            bpy.data.objects['ExternalEdge'].select_set(True)
-            bpy.ops.object.delete()
-            self.object.select_set(True)
-            bpy.ops.object.editmode_toggle()
+        self.set_external_location('wedge')
 
     def make_external_edge(
             self,
@@ -220,7 +207,7 @@ class EmbossPlane(bpy.types.Operator):
             Emboss_height,
             Base_height
         ):
-        self.remove_external_edge()
+        self.remove_external_object('ExternalEdge')
         x = [
             object_location[0] - (0.5 * lx),
             object_location[0] + (0.5 * lx),
@@ -292,20 +279,10 @@ class EmbossPlane(bpy.types.Operator):
         ]
         me = bpy.data.meshes.new('ExternalEdgeMesh')
         self.external_edge = bpy.data.objects.new('ExternalEdge', me)
-        bpy.context.scene.collection.objects.link(self.external_edge)
+        self.collection.objects.link(self.external_edge)
         me.from_pydata(verts, [], faces)
         me.update()
-        bpy.ops.object.editmode_toggle()
-        self.external_edge.select_set(True)
-        self.object.select_set(False)
-        bpy.context.view_layer.objects.active = self.external_edge
-        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        self.external_edge.location = self.external_rot @ self.external_edge.location
-        self.external_edge.rotation_euler.rotate(self.external_rot)
-        bpy.context.view_layer.objects.active = self.object
-        self.external_edge.select_set(False)
-        self.object.select_set(True)
-        bpy.ops.object.editmode_toggle()
+        self.set_external_location('external_edge')
 
     def update_external(self):
         self.External_y = False
@@ -361,21 +338,15 @@ class EmbossPlane(bpy.types.Operator):
             Invert_image
         ):
         bm = self.get_bm()
-
-        # get a vertex list for "emboss" group
-        bpy.ops.object.vertex_group_set_active(group='emboss')
-        bpy.ops.object.vertex_group_select()
-        verts_emboss = [v.index for v in bm.verts if v.select]
-        bpy.ops.mesh.select_all(action='DESELECT')
-
         # make copy of mesh with modifiers applies
         depsgraph = context.evaluated_depsgraph_get()
+        object_mod = self.object.evaluated_get(depsgraph)
         bm_mod = bmesh.new()
-        bm_mod.from_object(self.object, depsgraph)
+        bm_mod.from_mesh(bpy.data.meshes.new_from_object(object_mod))
         bm_mod.verts.ensure_lookup_table()
 
         # loop over emboss group looking for spikes
-        for v_index in verts_emboss:
+        for v_index in self.verts_1:
             v = bm.verts[v_index]
             z = bm_mod.verts[v_index].co.z
             other_z_dif = 0
@@ -402,6 +373,10 @@ class EmbossPlane(bpy.types.Operator):
         object = context.active_object
         name = object.name
         self.object = bpy.data.objects[name]
+        if len(self.object.users_collection) > 0:
+            self.collection = self.object.users_collection[0]
+        else:
+            self.collection = bpy.context.scene.collection
         self.update_external()
 
         # get object
@@ -446,9 +421,13 @@ class EmbossPlane(bpy.types.Operator):
             except RuntimeError:
                 continue
 
-        bpy.ops.mesh.select_all(action='TOGGLE')
+        bpy.ops.mesh.select_all(action='DESELECT')
 
         # make vertex groups
+        if 'emboss' not in self.object.vertex_groups.keys():
+            self.object.vertex_groups.new(name='emboss')
+
+        # apply weights
         weight_args = (
             self.object.location,
             self.lx,
@@ -459,18 +438,17 @@ class EmbossPlane(bpy.types.Operator):
             self.External_x,
             self.External_mx
         )
-        vertex_weights = [self.get_weight(v, *weight_args) for v in bm.verts]
-        verts = [v.index for v in bm.verts]
-        vgk = self.object.vertex_groups.keys()
-        if 'emboss' not in vgk:
-            self.object.vertex_groups.new(name='emboss')
-        bpy.ops.object.editmode_toggle()
-        for v, w in zip(verts, vertex_weights):
-            self.object.vertex_groups['emboss'].add([v], w, 'REPLACE')
-        bpy.ops.object.editmode_toggle()
+        bm = self.get_bm()
+        bm.verts.layers.deform.verify()
+        deform = bm.verts.layers.deform.active
+        self.verts_1 = []
+        for v in bm.verts:
+            w = self.get_weight(v, *weight_args)
+            v[deform][0] = w
+            if w == 1:
+                self.verts_1.append(v.index)
 
         # Extrude down and close bottom
-        bm = self.get_bm()
         extrude_normal = bm.verts[0].normal * -1 * (self.Emboss_height + self.Base_height)
         bound_edges = [e for e in bm.edges if e.is_boundary]
         bound_edges_index = [e.index for e in bound_edges]
@@ -488,13 +466,16 @@ class EmbossPlane(bpy.types.Operator):
         bottom_face_verts_index = [v.index for v in bm.verts if v.select]
         bpy.ops.mesh.select_all(action='DESELECT')
 
+        # set vertex group values
+        bm = self.get_bm()
+        bm.verts.layers.deform.verify()
+        deform = bm.verts.layers.deform.active
+        for v_index in bottom_face_verts_index + bound_verts_index:
+            bm.verts[v_index][deform][0] = 0
+
         # set crease on boundary
-        bpy.ops.object.editmode_toggle()
-        self.object.vertex_groups['emboss'].remove(bottom_face_verts_index)
-        self.object.vertex_groups['emboss'].remove(bound_verts_index)
-        for idx in bound_edges_index:
-            self.object.data.edges[idx].select = True
-        bpy.ops.object.editmode_toggle()
+        for e_index in bound_edges_index:
+            bm.edges[e_index].select = True
         bpy.ops.transform.edge_crease(value=1)
 
         # add modifiers
@@ -505,41 +486,22 @@ class EmbossPlane(bpy.types.Operator):
         mod = self.object.modifiers.keys()
         if 'Displacement' not in tex:
             iTex = bpy.data.textures.new('Displacement', type='IMAGE')
-            iTex.image = bpy.data.images[0]  # assume last image loaded is the correct one
         else:
             iTex = bpy.data.textures['Displacement']
+        iTex.image = bpy.data.images[0]  # assume last image loaded is the correct one
         iTex.filter_size = self.Noise_filter
         if 'bump' not in mod:
             displace = self.object.modifiers.new(name='bump', type='DISPLACE')
             displace.texture = iTex
             displace.direction = 'Z'
-            displace.mid_level = 1 * invert_multiplyer
             displace.vertex_group = 'emboss'
             displace.texture_coords = 'UV'
-            displace.strength = self.Emboss_height * invert_multiplyer
             displace.show_in_editmode = True
             displace.show_on_cage = True
         else:
             displace = self.object.modifiers['bump']
-            displace.strength = self.Emboss_height * invert_multiplyer
-            displace.mid_level = 1 * invert_multiplyer
-
-        # if external edge create wedge and edge
-        if self.External_edge != 'NONE':
-            make_args = (
-                self.object.location,
-                self.lx,
-                self.ly,
-                self.Border_width,
-                self.Emboss_height,
-                self.Base_height
-            )
-            self.get_external_rot()
-            self.make_wedge(*make_args)
-            self.make_external_edge(*make_args)
-        else:
-            self.remove_external_edge()
-            self.remove_wedge()
+        displace.strength = self.Emboss_height * invert_multiplyer
+        displace.mid_level = 1 * invert_multiplyer
 
         # Deselect all verts
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -556,6 +518,23 @@ class EmbossPlane(bpy.types.Operator):
                 self.Spike_reduction_factor,
                 self.Invert_image
             )
+
+        # if external edge create wedge and edge
+        if self.External_edge != 'NONE':
+            make_args = (
+                self.object.location,
+                self.lx,
+                self.ly,
+                self.Border_width,
+                self.Emboss_height,
+                self.Base_height
+            )
+            self.get_external_rot()
+            self.make_wedge(*make_args)
+            self.make_external_edge(*make_args)
+        else:
+            self.remove_external_object('wedge')
+            self.remove_external_object('ExternalEdge')
 
         # Smooth surface
         if 'smooth' not in mod:
