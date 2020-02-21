@@ -181,7 +181,7 @@ class Holder(bpy.types.Operator):
         return diag
 
     def execute(self, context):
-        self.location = copy.deepcopy(bpy.context.scene.cursor_location)
+        self.location = copy.deepcopy(bpy.context.scene.cursor.location)
         self.H = self.Height_models + self.Thickness_walls + 3
         self.W = self.Length_models + (2 * self.Thickness_walls) + 3
         self.L = self.Number_slots * (self.Width_slots + self.Thickness_slats) - self.Thickness_slats + 2 * self.Thickness_walls

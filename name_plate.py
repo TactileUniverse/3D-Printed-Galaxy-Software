@@ -74,40 +74,37 @@ class NamePlate(bpy.types.Operator):
         unit='LENGTH',
         description='This should match the "Border width" value from Emboss Plane'
     )
-
-    def __init__(self, *args, **kwargs):
-        '''Define object names and update the class counter'''
-        if self.class_counter == 0:
-            self.name_plate_object_key = 'NamePlate'
-            self.name_plate_mesh_key = 'NamePlateMesh'
-            self.text_cure_key = 'FontCurve'
-            self.text_object_key = 'FontObject'
-        else:
-            self.name_plate_object_key = 'NamePlate.{0:03d}'.format(NamePlate.class_counter)
-            self.name_plate_mesh_key = 'NamePlateMesh.{0:03d}'.format(NamePlate.class_counter)
-            self.text_cure_key = 'FontCurve.{0:03d}'.format(NamePlate.class_counter)
-            self.text_object_key = 'FontObject.{0:03d}'.format(NamePlate.class_counter)
-        NamePlate.class_counter += 1
-        super().__init__(*args, **kwargs)
+    Object_name: StringProperty(
+        name='Base object name',
+        default='NamePlate',
+        description='Base name used for the name plate objects created'
+    )
 
     def remove_name_plate(self):
         if self.name_plate_object_key in bpy.data.objects.keys():
-            bpy.data.objects[self.name_plate_object_key].select_set(True)
-            bpy.ops.object.delete()
+            bpy.data.objects.remove(bpy.data.objects[self.name_plate_object_key], do_unlink=True)
+        if self.name_plate_mesh_key in bpy.data.meshes.keys():
+            bpy.data.meshes.remove(bpy.data.meshes[self.name_plate_mesh_key], do_unlink=True)
+
+    def remove_text(self):
+        if self.text_object_key in bpy.data.objects.keys():
+            bpy.data.objects.remove(bpy.data.objects[self.text_object_key], do_unlink=True)
+        if self.text_cure_key in bpy.data.curves.keys():
+            bpy.data.curves.remove(bpy.data.curves[self.text_cure_key], do_unlink=True)
 
     def make_name_plate_flat(self):
         self.remove_name_plate()
         x = [
-            self.location[0] - (0.5 * self.Size_x),
-            self.location[0] + (0.5 * self.Size_x)
+            -0.5 * self.Size_x,
+            0.5 * self.Size_x
         ]
         y = [
-            self.location[1] + (0.5 * self.Size_y),
-            self.location[1] - (0.5 * self.Size_y)
+            0.5 * self.Size_y,
+            -0.5 * self.Size_y
         ]
         z = [
-            self.location[2] + (0.5 * self.Size_z),
-            self.location[2] - (0.5 * self.Size_z)
+            0.5 * self.Size_z,
+            -0.5 * self.Size_z
         ]
         verts = [
             Vector((x[0], y[0], z[0])),
@@ -133,31 +130,30 @@ class NamePlate(bpy.types.Operator):
         bpy.context.scene.collection.objects.link(self.name_plate)
         me.from_pydata(verts, [], faces)
         me.update()
-        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
 
     def make_name_plate_notches(self):
         self.remove_name_plate()
         x = [
-            self.location[0] - (0.5 * self.Size_x),
-            self.location[0] + (0.5 * self.Size_x),
-            self.location[0] + (0.25 * self.Size_x) - 1.75,
-            self.location[0] + (0.25 * self.Size_x) + 1.75,
-            self.location[0] + (0.25 * self.Size_x) - 3.5,
-            self.location[0] + (0.25 * self.Size_x) + 3.5,
-            self.location[0] - (0.25 * self.Size_x) - 1.75,
-            self.location[0] - (0.25 * self.Size_x) + 1.75,
-            self.location[0] - (0.25 * self.Size_x) - 3.5,
-            self.location[0] - (0.25 * self.Size_x) + 3.5
+            -0.5 * self.Size_x,
+            0.5 * self.Size_x,
+            (0.25 * self.Size_x) - 1.75,
+            (0.25 * self.Size_x) + 1.75,
+            (0.25 * self.Size_x) - 3.5,
+            (0.25 * self.Size_x) + 3.5,
+            -(0.25 * self.Size_x) - 1.75,
+            -(0.25 * self.Size_x) + 1.75,
+            -(0.25 * self.Size_x) - 3.5,
+            -(0.25 * self.Size_x) + 3.5
         ]
         y = [
-            self.location[1] + (0.5 * self.Size_y),
-            self.location[1] - (0.5 * self.Size_y),
-            self.location[1] + (0.5 * self.Size_y) - (self.Border_width * 2 / 3)
+            0.5 * self.Size_y,
+            -0.5 * self.Size_y,
+            (0.5 * self.Size_y) - (self.Border_width * 2 / 3)
         ]
         z = [
-            self.location[2] + (0.5 * self.Size_z),
-            self.location[2] - (0.5 * self.Size_z),
-            self.location[2] - (0.5 * self.Size_z) + self.Base_height
+            0.5 * self.Size_z,
+            -0.5 * self.Size_z,
+            -(0.5 * self.Size_z) + self.Base_height
         ]
         verts = [
             Vector((x[0], y[0], z[0])),
@@ -211,41 +207,39 @@ class NamePlate(bpy.types.Operator):
         bpy.context.scene.collection.objects.link(self.name_plate)
         me.from_pydata(verts, [], faces)
         me.update()
-        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
         R = Matrix.Rotation(math.radians(180), 4, Vector((0, 0, 1)))
-        T = Matrix.Translation(self.location)
-        TRT = T @ R @ T.inverted()
-        self.name_plate.location = TRT @ self.name_plate.location
-        self.name_plate.rotation_euler.rotate(TRT)
+        self.name_plate.rotation_euler.rotate(R)
 
     def make_font(self):
-        if self.text_object_key not in bpy.data.objects.keys():
-            self.font_curve = bpy.data.curves.new(type="FONT", name=self.text_cure_key)
-            self.font_curve.extrude = 1
-            self.font_object = bpy.data.objects.new(self.text_object_key, self.font_curve)
-            bpy.context.scene.collection.objects.link(self.font_object)
-            bpy.context.scene.update()
-        else:
-            self.font_object = bpy.data.objects[self.text_object_key]
-            self.font_curve = bpy.data.curves[self.text_curve_key]
+        self.remove_text()
+        self.font_curve = bpy.data.curves.new(type="FONT", name=self.text_cure_key)
+        self.font_curve.extrude = 1
+        self.font_object = bpy.data.objects.new(self.text_object_key, self.font_curve)
+        bpy.context.scene.collection.objects.link(self.font_object)
         self.font_curve.size = self.Text_size
         self.font_object.data.body = self.Text
-        self.font_object.select_set(True)
-        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
-        self.font_object.select_set(False)
+        self.font_object.data.align_x = 'CENTER'
+        self.font_object.data.align_y = 'CENTER'
         self.font_object.location = Vector((
-            self.location[0],
-            self.location[1],
-            self.location[2] + (0.5 * self.Size_z)
+            0,
+            0,
+            (0.5 * self.Size_z)
         ))
 
     def execute(self, context):
-        self.location = copy.deepcopy(bpy.context.scene.cursor_location)
+        self.name_plate_object_key = '{0}Plate'.format(self.Object_name)
+        self.name_plate_mesh_key = '{0}Mesh'.format(self.Object_name)
+        self.text_cure_key = '{0}FontCurve'.format(self.Object_name)
+        self.text_object_key = '{0}FontObject'.format(self.Object_name)
         if self.Notches:
             self.make_name_plate_notches()
         else:
             self.make_name_plate_flat()
         self.make_font()
+        self.name_plate.location += bpy.context.scene.cursor.location
+        self.name_plate.rotation_euler.rotate(bpy.context.scene.cursor.rotation_euler)
+        self.font_object.location += bpy.context.scene.cursor.location
+        self.font_object.rotation_euler.rotate(bpy.context.scene.cursor.rotation_euler)
         return {'FINISHED'}
 
 
