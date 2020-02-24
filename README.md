@@ -7,12 +7,21 @@ The software created and used for the Tactile Universe
 ## Make images
 `make_images.py`: A python script that converts set of 3 `.fits` files into a single band images and an rgb false color image.  The single band images can be used as height maps to create the 3D models.  This script makes use of [Astropy](http://www.astropy.org/), [reproject](https://reproject.readthedocs.io/en/stable/), [NumPy](http://www.numpy.org/), and [Matplotlib](http://matplotlib.org/).
 
-## Emboss Plane
-`emboss_plane.py`: A [Blender](https://www.blender.org/) plugin to turn a single-band black and white image into a 3D printable model.
+## Tactile Universe plugin
+`tactile_universe_plugin.zip`: A [Blender](https://www.blender.org/) plugin containing all the functions needed to create tactile universe models in blender.
 
+## Command line install script
+`install_all_addons.py`: A script for installing and activating all of the plugins needed to make Tactile Universe models (useful if the Blender UI is too difficult to use).
+
+```bash
+blender -b --python install_all_addons.py
+```
+
+## M51 image
+`M51_i.png`: The SDSS i-band image of the galaxy M51. This image can be used for testing out the plugin and command line tools.
 
 ## Make model
-`make_model.py`: A blender script for automating the model making process via the command line.  To learn how to run blender via the command line see the [their documentation](https://docs.blender.org/manual/en/dev/render/workflows/command_line.html).  Once set up this script can be used as follows
+`make_model.py`: A blender script for automating the model making process via the command line.  To learn how to run blender via the command line see the [Blender documentation](https://docs.blender.org/manual/en/dev/render/workflows/command_line.html).  Once set up this script can be used as follows
 
 ```bash
 blender TU_startup.blend --python-exit-code 1 --python make_model.py -- example_model_config.json
@@ -26,34 +35,10 @@ blender TU_startup.blend --python-exit-code 1 --python make_model.py -- example_
 
  - `input_file_path`: Full path to the image file (if no path is specified it assumes the image is the the same directory the script is called from)
  - `plane_height`: Height in `mm` of the resulting model
- - `emboss_plane_keywords`: The keywords to be passed into the `emboss_plane` plugin, any that are not specified will use their default values
- - `filter_size`: The size of the filter (in pixels) applied to the input image, this is useful for noisy images.
+ - `emboss_plane_keywords`: The keywords to be passed into the `emboss_plane` plugin, any that are not specified will use their default values (the example file lists all keywords with their default values)
  - `stl_keywords`: The keywords passed into the `stl` export function, any that are not specified will use default values.
  - `output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
  - `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
- - `spike_removal`: If `true` a spike removal code will be run on the model before export the `.stl` files.  This will locate any local spikes and lower them (typically foreground stars).  This is only needed if you fabrication method has a very high resolution (i.e. CNC milling).  This option will save the "spike removed" blend file separately from the unmodified file.
-
-
-## Name Plate
-`name_plate.py`: A [Blender](https://www.blender.org/) plugin to crate name plates for the models created with the Emboss Plane plugin.
-
-## Make name plate
-`make_name_plate.py`: A blender script for automating the name plate making process via the command line.  To learn how to run blender via the command line see the [their documentation](https://docs.blender.org/manual/en/dev/render/workflows/command_line.html).  Once set up this script can be used as follows
-
-```bash
-blender TU_startup.blend --python-exit-code 1 --python make_name_plate.py -- example_name_config.json
-```
-
-### Configuration
-`example_name_config.json`: A file containing the configuration parameters to run `make_name_plate.py`.  This example file contains the maximum number of parameters that can be configured.
-
- - `name_plate_keywords`: The keywords to be passed into the `name_plate` plugin, any that are not specified will use their default values
- - `stl_keywords`: The keywords passed into the `stl` export function, any that are not specified will use default values.
- - `output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
- - `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
-
-## Holder
-`holder.py`: A [Blender](https://www.blender.org/) plugin to create a holder for the models created with the Emboss Plane plugin.
 
 ## Make holder
 `make_holder.py`: A blender script for automating the holder making process via the command line.  Once set up this script can be used as follows
@@ -69,9 +54,4 @@ blender TU_startup.blend --python-exit-code 1 --python make_holder.py -- example
  - `output_path`: Full path to the folder the output files will be saved to (if not specified it will use the directory the script is called from).
  - `output_name`: The name to used for the `.blend` and `.stl` files created by the script.
 
-## Command line install script
-`install_all_addons.py`: A script for installing and activating all of our plugins.
 
-```bash
-blender -b --python install_all_addons.py
-```

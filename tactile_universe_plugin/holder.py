@@ -3,16 +3,6 @@ import copy
 from mathutils import Vector
 from bpy.props import FloatProperty, IntProperty
 
-bl_info = {
-    'name': 'Tactile Universe model holder',
-    'description': 'Make a holder for Tactile Universe models',
-    'author': 'Coleman Krawczyk',
-    'version': (1, 0),
-    'blender': (2, 76, 0),
-    'location': 'View3D > Add > Mesh > New Object',
-    'category': 'Mesh',
-}
-
 
 class Holder(bpy.types.Operator):
     '''TU Model Holder'''
@@ -22,14 +12,14 @@ class Holder(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     class_counter = 0
 
-    Number_slots = IntProperty(
+    Number_slots: IntProperty(
         name='Number of slots',
         default=10,
         min=1,
         description='Number of slots the holder should have'
     )
 
-    Width_slots = FloatProperty(
+    Width_slots: FloatProperty(
         name='Width of slots',
         default=20,
         min=1,
@@ -37,7 +27,7 @@ class Holder(bpy.types.Operator):
         description='Width of the slots in the holder'
     )
 
-    Height_models = FloatProperty(
+    Height_models: FloatProperty(
         name='Height of models',
         default=132,
         min=1,
@@ -45,7 +35,7 @@ class Holder(bpy.types.Operator):
         description='The height of the models to be held'
     )
 
-    Length_models = FloatProperty(
+    Length_models: FloatProperty(
         name='Length of models',
         default=112,
         min=1,
@@ -53,7 +43,7 @@ class Holder(bpy.types.Operator):
         description='The length of the models to be held'
     )
 
-    Thickness_slats = FloatProperty(
+    Thickness_slats: FloatProperty(
         name='Thickness of slot walls',
         default=2,
         min=1,
@@ -61,12 +51,12 @@ class Holder(bpy.types.Operator):
         description='Thickness of slot walls'
     )
 
-    Thickness_walls = FloatProperty(
+    Thickness_walls: FloatProperty(
         name='Thickness of outside walls',
         default=5,
         min=1,
         unit='LENGTH',
-        description='Thicknesss of outside walls'
+        description='Thickness of outside walls'
     )
 
     def __init__(self, *args, **kwargs):
@@ -81,7 +71,7 @@ class Holder(bpy.types.Operator):
     def remove_by_name(self, name):
         if name in bpy.data.objects.keys():
             obj = bpy.data.objects[name]
-            obj.select = True
+            obj.select_set(True)
             bpy.ops.object.delete()
 
     def make_rectangle(self, corner, size, name='rectangle'):
@@ -95,15 +85,15 @@ class Holder(bpy.types.Operator):
         z += self.location.z
         sx, sy, sz = size
         verts = [
-            Vector((x,      y,      z)),
-            Vector((x + sx, y,      z)),
+            Vector((x, y, z)),
+            Vector((x + sx, y, z)),
             Vector((x + sx, y + sy, z)),
-            Vector((x,      y + sy, z)),
+            Vector((x, y + sy, z)),
 
-            Vector((x,      y,      z + sz)),
-            Vector((x + sx, y,      z + sz)),
+            Vector((x, y, z + sz)),
+            Vector((x + sx, y, z + sz)),
             Vector((x + sx, y + sy, z + sz)),
-            Vector((x,      y + sy, z + sz))
+            Vector((x, y + sy, z + sz))
         ]
         faces = [
             (3, 2, 1, 0),
@@ -115,12 +105,12 @@ class Holder(bpy.types.Operator):
         ]
         me = bpy.data.meshes.new(name_mesh)
         rectangle = bpy.data.objects.new(name, me)
-        bpy.context.scene.objects.link(rectangle)
+        bpy.context.scene.collection.objects.link(rectangle)
         me.from_pydata(verts, [], faces)
         me.update()
-        rectangle.select = True
+        rectangle.select_set(True)
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        rectangle.select = False
+        rectangle.select_set(False)
         return rectangle
 
     def make_diag(self, y='front', x='left', name='diag'):
@@ -142,15 +132,15 @@ class Holder(bpy.types.Operator):
         sy = 20 * yf
         sz = self.H - 25
         verts = [
-            Vector((x,      y1 + sy, z)),
+            Vector((x, y1 + sy, z)),
             Vector((x + sx, y1 + sy, z)),
-            Vector((x + sx, y1,      z)),
-            Vector((x,      y1,      z)),
+            Vector((x + sx, y1, z)),
+            Vector((x, y1, z)),
 
-            Vector((x,      y2,      z + sz)),
-            Vector((x + sx, y2,      z + sz)),
+            Vector((x, y2, z + sz)),
+            Vector((x + sx, y2, z + sz)),
             Vector((x + sx, y2 - sy, z + sz)),
-            Vector((x,      y2 - sy, z + sz))
+            Vector((x, y2 - sy, z + sz))
         ]
         if xf == yf:
             faces = [
@@ -172,16 +162,16 @@ class Holder(bpy.types.Operator):
             ]
         me = bpy.data.meshes.new(name_mesh)
         diag = bpy.data.objects.new(name, me)
-        bpy.context.scene.objects.link(diag)
+        bpy.context.scene.collection.objects.link(diag)
         me.from_pydata(verts, [], faces)
         me.update()
-        diag.select = True
+        diag.select_set(True)
         bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
-        diag.select = False
+        diag.select_set(False)
         return diag
 
     def execute(self, context):
-        self.location = copy.deepcopy(bpy.context.scene.cursor_location)
+        self.location = copy.deepcopy(bpy.context.scene.cursor.location)
         self.H = self.Height_models + self.Thickness_walls + 3
         self.W = self.Length_models + (2 * self.Thickness_walls) + 3
         self.L = self.Number_slots * (self.Width_slots + self.Thickness_slats) - self.Thickness_slats + 2 * self.Thickness_walls
@@ -359,7 +349,7 @@ class Holder(bpy.types.Operator):
         ))
         bpy.ops.object.select_all(action='TOGGLE')
         for lid_rectangle in self.lid:
-            lid_rectangle.select = False
+            lid_rectangle.select_set(False)
         return {'FINISHED'}
 
 
@@ -373,12 +363,12 @@ def add_object_button(self, context):
 
 def register():
     bpy.utils.register_class(Holder)
-    bpy.types.INFO_MT_mesh_add.append(add_object_button)
+    bpy.types.VIEW3D_MT_mesh_add.append(add_object_button)
 
 
 def unregister():
     bpy.utils.unregister_class(Holder)
-    bpy.types.INFO_MT_mesh_add.remove(add_object_button)
+    bpy.types.VIEW3D_MT_mesh_add.remove(add_object_button)
 
 
 if __name__ == '__main__':
