@@ -1,18 +1,28 @@
 {
-  "input_file_path": "M51_g.png",
+  "input_file_path": "M51_i.png",
   "plane_height": 112,
   "emboss_plane_keywords": {
     "Fpu": 2,
     "Emboss_height": 3,
+    "Invert_image": false,
     "Base_height": 3,
     "Border_width": 3,
-    "External_edge": "TOP"
+    "External_edge": "TOP",
+    "Back_frame": true,
+    "Gap_size": 1,
+    "Noise_filter": 1,
+    "Spike_removal": true,
+    "Spike_threshold": 0.75,
+    "Spike_reduction_factor": 0.75,
+    "Name_plate": true,
+    "Name_plate_Y": 20,
+    "Name_plate_text": "M51 i >",
+    "Name_plate_text_size": 18
   },
-  "filter_size": 1.0,
   "stl_keywords": {
     "axis_forward": "Z",
-    "axis_up": "X"
+    "axis_up": "-Y"
   },
   "output_path": "/Users/coleman/Desktop",
-  "output_name": "M51_g"
+  "output_name": "M51_i"
 }
