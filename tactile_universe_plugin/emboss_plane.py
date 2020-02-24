@@ -1,42 +1,32 @@
 import bpy
 import bmesh
 import math
-from mathutils import Vector, Matrix, Euler
+from mathutils import Vector, Euler
 from bpy.props import FloatProperty, EnumProperty, BoolProperty, StringProperty
-
-bl_info = {
-    'name': 'Emboss plane',
-    'description': 'Emboss and solidify a plane',
-    'author': 'Coleman Krawczyk',
-    'version': (3, 0),
-    'blender': (2, 80, 0),
-    'location': 'View3D > Menu > Mesh Edit',
-    'category': 'Mesh',
-}
 
 
 class EmbossPlane(bpy.types.Operator):
-    '''Emboss Plane'''
+    '''TU Emboss Plane'''
 
     bl_idname = 'object.emboss_plane'
     bl_label = 'Emboss and solidify a plane'
     bl_options = {'REGISTER', 'UNDO'}
 
     Fpu: FloatProperty(
-        name='Faces per unit',
+        name='Faces Per Unit',
         default=2,
         min=0,
         description='Number of faces per unit length across the top of the plane'
     )
     Emboss_height: FloatProperty(
-        name='Emboss thickness',
+        name='Emboss Thickness',
         default=3,
         min=0.1,
         unit='LENGTH',
-        description='The Emboss height for the model'
+        description='The emboss height for the model'
     )
     Invert_image: BoolProperty(
-        name='Invert image',
+        name='Invert Image',
         default=False,
         description='Invert the emboss direction'
     )
@@ -48,7 +38,7 @@ class EmbossPlane(bpy.types.Operator):
         description="Thickness of the model's base"
     )
     Border_width: FloatProperty(
-        name='Border width',
+        name='Border Width',
         default=3,
         min=0.1,
         unit='LENGTH',
@@ -69,6 +59,18 @@ class EmbossPlane(bpy.types.Operator):
             ('TOP', 'top', ''),
             ('BOTTOM', 'bottom', '')
         ]
+    )
+    Back_frame: BoolProperty(
+        name='Back Frame',
+        default=True,
+        description='Add a back frame to the model'
+    )
+    Gap_size: FloatProperty(
+        name='Back Frame Gap Size',
+        default=1,
+        min=0,
+        unit='LENGTH',
+        description='Size of the gap between the back frame and model'
     )
     Noise_filter: FloatProperty(
         name='Noise Filter Size',
@@ -118,6 +120,87 @@ class EmbossPlane(bpy.types.Operator):
         description='Font size of the text'
     )
 
+    def draw(self, context):
+        layout = self.layout
+        box1 = layout.box()
+        box1.label(text='Emboss Properties')
+
+        row = box1.row()
+        row.label(text='Faces Per Unit')
+        row.prop(self, 'Fpu', text='')
+
+        row = box1.row()
+        row.label(text='Emboss Thickness')
+        row.prop(self, 'Emboss_height', text='')
+
+        row = box1.row()
+        row.label(text='Invert Image')
+        row.prop(self, 'Invert_image', text='')
+
+        row = box1.row()
+        row.label(text='Base Thickness')
+        row.prop(self, 'Base_height', text='')
+
+        row = box1.row()
+        row.label(text='Border Width')
+        row.prop(self, 'Border_width', text='')
+
+        row = box1.row()
+        row.label(text='External Edge')
+        row.prop(self, 'External_edge', text='')
+
+        row = box1.row()
+        row.label(text='Back Frame')
+        row.prop(self, 'Back_frame', text='')
+
+        row = box1.row()
+        row.enabled = self.Back_frame
+        row.label(text='Back Frame Gap Size')
+        row.prop(self, 'Gap_size', text='')
+
+        box2 = layout.box()
+        box2.label(text='Filter Properties')
+
+        row = box2.row()
+        row.label(text='Noise Filter Size')
+        row.prop(self, 'Noise_filter', text='')
+
+        row = box2.row()
+        row.label(text='Spike Removal')
+        row.prop(self, 'Spike_removal', text='')
+
+        row = box2.row()
+        row.enabled = self.Spike_removal
+        row.label(text='Spike Threshold')
+        row.prop(self, 'Spike_threshold', text='')
+
+        row = box2.row()
+        row.enabled = self.Spike_removal
+        row.label(text='Spike Reduction Factor')
+        row.prop(self, 'Spike_reduction_factor', text='')
+
+        box3 = layout.box()
+        box3.label(text='Name Plate Properties')
+
+        row = box3.row()
+        row.label(text='Make Name Plate')
+        row.prop(self, 'Name_plate', text='')
+
+        row = box3.row()
+        row.enabled = self.Name_plate
+        row.label(text='Name Plate Height')
+        row.prop(self, 'Name_plate_Y', text='')
+
+        row = box3.row()
+        row.enabled = self.Name_plate
+        row.label(text='Name Plate Text')
+        row.prop(self, 'Name_plate_text', text='')
+
+        row = box3.row()
+        row.enabled = self.Name_plate
+        row.label(text='Name Plate Text Size')
+        row.prop(self, 'Name_plate_text_size', text='')
+
     def get_bm(self):
         bm = bmesh.from_edit_mesh(self.object.data)
         if hasattr(bm.verts, 'ensure_lookup_table'):
@@ -126,49 +209,101 @@ class EmbossPlane(bpy.types.Operator):
             bm.faces.ensure_lookup_table()
         return bm
 
-    def get_external_rot(self):
-        if self.External_edge == 'TOP':
-            R = Matrix.Rotation(0, 4, Vector((0, 0, 1)))
-        elif self.External_edge == 'BOTTOM':
-            R = Matrix.Rotation(math.radians(180), 4, Vector((0, 0, 1)))
-        elif self.External_edge == 'RIGHT':
-            R = Matrix.Rotation(math.radians(-90), 4, Vector((0, 0, 1)))
-        else:
-            R = Matrix.Rotation(math.radians(90), 4, Vector((0, 0, 1)))
-        T = Matrix.Translation(self.object.location)
-        self.external_rot = T @ R @ T.inverted()
-
     def remove_external_object(self, name):
         if name in bpy.data.objects.keys():
             bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
 
-    def set_external_location(self, name):
-        external_object = self.__getattribute__(name)
-        external_object.select_set(True)
-        self.object.select_set(False)
-        bpy.context.view_layer.objects.active = external_object
-        external_object.location = self.external_rot @ external_object.location
-        external_object.rotation_euler.rotate(self.external_rot)
-        bpy.context.view_layer.objects.active = self.object
-        external_object.select_set(False)
-        self.object.select_set(True)
+    def get_loc_rot(self):
+        if self.Name_plate:
+            self.plate_Y = self.Name_plate_Y
+            self.size_Y = self.ly + self.Name_plate_Y
+        else:
+            self.plate_Y = self.Border_width
+            self.size_Y = self.ly
+        if self.External_edge == 'NONE':
+            self.edge_location = Vector((
+                0,
+                (0.5 * self.ly) + (0.5 * self.Name_plate_Y) - (0.25 * self.Border_width),
+                -0.5 * (self.Emboss_height + self.Base_height)
+            ))
+            self.edge_rotation = Euler((0, 0, 0))
+            self.edge_size_x = self.lx
+            self.frame_1_location = Vector((
+                self.object.location[0],
+                self.object.location[1],
+                -self.Emboss_height - self.Base_height
+            ))
+            self.wedge_frame_rotation = Euler((0, 0, 0))
+            if self.Name_plate:
+                self.frame_1_location[1] += 0.5 * self.Name_plate_Y
+        else:
+            if self.External_edge == 'TOP':
+                self.wedge_location = Vector((0, 0.5 * self.ly, -self.Emboss_height))
+                self.wedge_frame_rotation = Euler((0, 0, 0))
+                self.edge_location = Vector((
+                    0,
+                    0.5 * (self.plate_Y - self.ly),
+                    3 + self.Gap_size + 0.5 * (self.Emboss_height + self.Base_height)
+                ))
+                self.edge_rotation = Euler((0, 0, math.radians(180)))
+                self.edge_size_x = self.lx
+            elif self.External_edge == 'BOTTOM':
+                self.wedge_location = Vector((0, -0.5 * self.ly, -self.Emboss_height))
+                self.wedge_frame_rotation = Euler((0, 0, math.radians(180)))
+                self.edge_location = Vector((
+                    0,
+                    0.5 * (self.ly - self.plate_Y),
+                    3 + self.Gap_size + 0.5 * (self.Emboss_height + self.Base_height)
+                ))
+                self.edge_rotation = Euler((0, 0, 0))
+                self.edge_size_x = self.lx
+            elif self.External_edge == 'RIGHT':
+                self.wedge_location = Vector((0.5 * self.lx, 0, -self.Emboss_height))
+                self.wedge_frame_rotation = Euler((0, 0, math.radians(-90)))
+                self.edge_location = Vector((
+                    0.5 * (self.plate_Y - self.lx),
+                    0,
+                    3 + self.Gap_size + 0.5 * (self.Emboss_height + self.Base_height)
+                ))
+                self.edge_rotation = Euler((0, 0, math.radians(90)))
+                self.edge_size_x = self.ly
+            elif self.External_edge == 'LEFT':
+                self.wedge_location = Vector((-0.5 * self.lx, 0, -self.Emboss_height))
+                self.wedge_frame_rotation = Euler((0, 0, math.radians(90)))
+                self.edge_location = Vector((
+                    0.5 * (self.lx - self.plate_Y),
+                    0,
+                    3 + self.Gap_size + 0.5 * (self.Emboss_height + self.Base_height)
+                ))
+                self.edge_rotation = Euler((0, 0, math.radians(-90)))
+                self.edge_size_x = self.ly
+            self.frame_1_location = Vector((
+                self.object.location[0],
+                self.object.location[1],
+                -self.Emboss_height - self.Base_height
+            ))
+            self.frame_2_location = self.edge_location + Vector((
+                self.object.location[0],
+                self.object.location[1],
+                -0.5 * (self.Emboss_height + self.Base_height)
+            ))
 
     def make_wedge(self):
-        self.remove_external_object('wedge')
-        shift = 0.25 * self.lx
+        self.remove_external_object('{0}wedge'.format(self.object.name))
+        shift = 0.25 * self.edge_size_x
         x = [
-            self.object.location[0] - 2.25,
-            self.object.location[0] + 2.25,
-            self.object.location[0] - 1.125,
-            self.object.location[0] + 1.125
+            -2.25,
+            2.25,
+            -1.125,
+            1.125
         ]
         y = [
-            self.object.location[1] + (0.5 * self.ly) + (2 * self.Border_width / 3),
-            self.object.location[1] + (0.5 * self.ly) - self.Border_width
+            (2 * self.Border_width / 3),
+            -self.Border_width
         ]
         z = [
-            self.object.location[2] - self.Emboss_height - 0.05,
-            self.object.location[2] - self.Emboss_height - self.Base_height + 0.05
+            -0.05,
+            -self.Base_height + 0.05
         ]
         verts = [
             Vector((x[0] + shift, y[0], z[0])),
@@ -206,12 +341,13 @@ class EmbossPlane(bpy.types.Operator):
             (0 + 8, 1 + 8, 5 + 8, 4 + 8),
             (2 + 8, 3 + 8, 7 + 8, 6 + 8)
         ]
-        me = bpy.data.meshes.new('wedge')
-        self.wedge = bpy.data.objects.new('wedge', me)
+        me = bpy.data.meshes.new('{0}wedge'.format(self.object.name))
+        self.wedge = bpy.data.objects.new('{0}wedge'.format(self.object.name), me)
         self.collection.objects.link(self.wedge)
         me.from_pydata(verts, [], faces)
         me.update()
-        self.set_external_location('wedge')
+        self.wedge.location = self.object.location + self.wedge_location
+        self.wedge.rotation_euler = self.wedge_frame_rotation
 
     def make_external_edge(self):
         self.remove_external_object('{0}Plate'.format(self.object.name))
@@ -223,43 +359,11 @@ class EmbossPlane(bpy.types.Operator):
             plate_Y = self.Border_width
             text = ''
         # more cursor to the correct location
-        if self.External_edge == 'TOP':
-            cursor_location = Vector((
-                0,
-                (plate_Y - self.ly) / 2,
-                3 + (self.Emboss_height + self.Base_height) / 2
-            ))
-            cursor_rotation = Euler((0, 0, math.radians(180)))
-            size_x = self.lx
-        elif self.External_edge == 'BOTTOM':
-            cursor_location = Vector((
-                0,
-                (self.ly - plate_Y) / 2,
-                3 + (self.Emboss_height + self.Base_height) / 2
-            ))
-            cursor_rotation = Euler((0, 0, 0))
-            size_x = self.lx
-        elif self.External_edge == 'RIGHT':
-            cursor_location = Vector((
-                (plate_Y - self.lx) / 2,
-                0,
-                3 + (self.Emboss_height + self.Base_height) / 2
-            ))
-            cursor_rotation = Euler((0, 0, math.radians(90)))
-            size_x = self.ly
-        else:
-            cursor_location = Vector((
-                (self.lx - plate_Y) / 2,
-                0,
-                3 + (self.Emboss_height + self.Base_height) / 2
-            ))
-            cursor_rotation = Euler((0, 0, math.radians(-90)))
-            size_x = self.ly
-        bpy.context.scene.cursor.location = cursor_location + self.object.location
-        bpy.context.scene.cursor.rotation_euler = cursor_rotation
+        bpy.context.scene.cursor.location = self.object.location + self.edge_location
+        bpy.context.scene.cursor.rotation_euler = self.edge_rotation
         # make the name plate with no text
         bpy.ops.object.name_plate(
-            Size_x=size_x,
+            Size_x=self.edge_size_x,
             Size_y=plate_Y,
             Size_z=self.Emboss_height + self.Base_height,
             Text=text,
@@ -278,15 +382,11 @@ class EmbossPlane(bpy.types.Operator):
         self.remove_external_object('{0}Plate'.format(self.object.name))
         self.remove_external_object('{0}FontObject'.format(self.object.name))
         # more cursor to the correct location
-        bpy.context.scene.cursor.location = Vector((
-            0,
-            (0.5 * self.ly) + (0.5 * self.Name_plate_Y) - (0.25 * self.Border_width),
-            -(self.Emboss_height + self.Base_height) / 2
-        )) + self.object.location
-        bpy.context.scene.cursor.rotation_euler = Euler((0, 0, 0))
+        bpy.context.scene.cursor.location = self.edge_location + self.object.location
+        bpy.context.scene.cursor.rotation_euler = self.edge_rotation
         # make the name plate
         bpy.ops.object.name_plate(
-            Size_x=self.lx,
+            Size_x=self.edge_size_x,
             Size_y=self.Name_plate_Y + (0.5 * self.Border_width),
             Size_z=self.Emboss_height + self.Base_height,
             Text=self.Name_plate_text,
@@ -300,6 +400,45 @@ class EmbossPlane(bpy.types.Operator):
         bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}FontObject'.format(self.object.name)])
         self.collection.objects.link(bpy.data.objects['{0}Plate'.format(self.object.name)])
         self.collection.objects.link(bpy.data.objects['{0}FontObject'.format(self.object.name)])
+
+    def make_back_frame(self):
+        self.remove_external_object('{0}BackFrameObject'.format(self.object.name))
+        self.remove_external_object('{0}PlateBackFrameObject'.format(self.object.name))
+        if self.External_edge == 'NONE':
+            bpy.context.scene.cursor.location = self.frame_1_location
+            bpy.context.scene.cursor.rotation_euler = self.wedge_frame_rotation
+            bpy.ops.object.back_frame(
+                Size_x=self.lx,
+                Size_y=self.size_Y,
+                Gap_size=self.Gap_size,
+                Border_width=self.Border_width,
+                Close=True,
+                Object_name='{0}BackFrame'.format(self.object.name)
+            )
+        else:
+            bpy.context.scene.cursor.location = self.frame_1_location
+            bpy.context.scene.cursor.rotation_euler = self.wedge_frame_rotation
+            bpy.ops.object.back_frame(
+                Size_x=self.lx,
+                Size_y=self.ly,
+                Gap_size=self.Gap_size,
+                Border_width=self.Border_width,
+                Close=False,
+                Object_name='{0}BackFrame'.format(self.object.name)
+            )
+            bpy.context.scene.cursor.location = self.frame_2_location
+            bpy.ops.object.back_frame(
+                Size_x=self.lx,
+                Size_y=self.plate_Y,
+                Gap_size=self.Gap_size,
+                Border_width=self.Border_width,
+                Close=False,
+                Object_name='{0}PlateBackFrame'.format(self.object.name)
+            )
+            bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}PlateBackFrameObject'.format(self.object.name)])
+            self.collection.objects.link(bpy.data.objects['{0}PlateBackFrameObject'.format(self.object.name)])
+        bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}BackFrameObject'.format(self.object.name)])
+        self.collection.objects.link(bpy.data.objects['{0}BackFrameObject'.format(self.object.name)])
 
     def update_external(self):
         self.External_y = False
@@ -412,6 +551,9 @@ class EmbossPlane(bpy.types.Operator):
         nx = round(math.sqrt(A * B)) - 1
         ny = round(math.sqrt(B / A)) - 1
         self.report({'INFO'}, '{0} total faces'.format(nx * ny))
+
+        # get location and rotation of all added meshes
+        self.get_loc_rot()
 
         # make loop cuts
         areas3D = [area for area in context.window.screen.areas if area.type == 'VIEW_3D']
@@ -541,7 +683,6 @@ class EmbossPlane(bpy.types.Operator):
 
         # if external or name plate edge create wedge and edge/name plate
         if self.External_edge != 'NONE':
-            self.get_external_rot()
             self.make_wedge()
             self.make_external_edge()
         else:
@@ -551,6 +692,12 @@ class EmbossPlane(bpy.types.Operator):
             else:
                 self.remove_external_object('{0}Plate'.format(self.object.name))
                 self.remove_external_object('{0}FontObject'.format(self.object.name))
+
+        if self.Back_frame:
+            self.make_back_frame()
+        else:
+            self.remove_external_object('{0}BackFrameObject'.format(self.object.name))
+            self.remove_external_object('{0}PlateBackFrameObject'.format(self.object.name))
 
         # Smooth surface
         if 'smooth' not in mod:

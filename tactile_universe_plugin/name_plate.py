@@ -1,27 +1,15 @@
 import bpy
-import copy
 import math
 from mathutils import Vector, Matrix
 from bpy.props import FloatProperty, BoolProperty, StringProperty
 
-bl_info = {
-    'name': 'Tactile Universe Name plate',
-    'description': 'Make a name plate for Tactile Universe model',
-    'author': 'Coleman Krawczyk',
-    'version': (1, 0),
-    'blender': (2, 80, 0),
-    'location': 'View3D > Add > Mesh > New Object',
-    'category': 'Mesh',
-}
-
 
 class NamePlate(bpy.types.Operator):
-    '''Name Plate'''
+    '''TU Name Plate'''
 
     bl_idname = 'object.name_plate'
     bl_label = 'Make a name plate for Tactile Universe model'
     bl_options = {'REGISTER', 'UNDO'}
-    class_counter = 0
 
     Size_x: FloatProperty(
         name='Size X',

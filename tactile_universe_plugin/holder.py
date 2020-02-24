@@ -3,16 +3,6 @@ import copy
 from mathutils import Vector
 from bpy.props import FloatProperty, IntProperty
 
-bl_info = {
-    'name': 'Tactile Universe model holder',
-    'description': 'Make a holder for Tactile Universe models',
-    'author': 'Coleman Krawczyk',
-    'version': (2, 0),
-    'blender': (2, 80, 0),
-    'location': 'View3D > Add > Mesh > New Object',
-    'category': 'Mesh',
-}
-
 
 class Holder(bpy.types.Operator):
     '''TU Model Holder'''
@@ -95,15 +85,15 @@ class Holder(bpy.types.Operator):
         z += self.location.z
         sx, sy, sz = size
         verts = [
-            Vector((x,      y,      z)),
-            Vector((x + sx, y,      z)),
+            Vector((x, y, z)),
+            Vector((x + sx, y, z)),
             Vector((x + sx, y + sy, z)),
-            Vector((x,      y + sy, z)),
+            Vector((x, y + sy, z)),
 
-            Vector((x,      y,      z + sz)),
-            Vector((x + sx, y,      z + sz)),
+            Vector((x, y, z + sz)),
+            Vector((x + sx, y, z + sz)),
             Vector((x + sx, y + sy, z + sz)),
-            Vector((x,      y + sy, z + sz))
+            Vector((x, y + sy, z + sz))
         ]
         faces = [
             (3, 2, 1, 0),
@@ -142,15 +132,15 @@ class Holder(bpy.types.Operator):
         sy = 20 * yf
         sz = self.H - 25
         verts = [
-            Vector((x,      y1 + sy, z)),
+            Vector((x, y1 + sy, z)),
             Vector((x + sx, y1 + sy, z)),
-            Vector((x + sx, y1,      z)),
-            Vector((x,      y1,      z)),
+            Vector((x + sx, y1, z)),
+            Vector((x, y1, z)),
 
-            Vector((x,      y2,      z + sz)),
-            Vector((x + sx, y2,      z + sz)),
+            Vector((x, y2, z + sz)),
+            Vector((x + sx, y2, z + sz)),
             Vector((x + sx, y2 - sy, z + sz)),
-            Vector((x,      y2 - sy, z + sz))
+            Vector((x, y2 - sy, z + sz))
         ]
         if xf == yf:
             faces = [
