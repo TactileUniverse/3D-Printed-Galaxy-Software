@@ -1,6 +1,7 @@
 import bpy
 import bmesh
 import math
+import os
 from mathutils import Vector, Euler
 from bpy.props import FloatProperty, EnumProperty, BoolProperty, StringProperty
 
@@ -289,7 +290,8 @@ class EmbossPlane(bpy.types.Operator):
             ))
 
     def make_wedge(self):
-        self.remove_external_object('{0}wedge'.format(self.object.name))
+        self.remove_external_object('{0}_wedge'.format(self.object.name))
+        _ = self.emboss_objects.pop('wedge', None)
         shift = 0.25 * self.edge_size_x
         x = [
             -2.25,
@@ -341,17 +343,20 @@ class EmbossPlane(bpy.types.Operator):
             (0 + 8, 1 + 8, 5 + 8, 4 + 8),
             (2 + 8, 3 + 8, 7 + 8, 6 + 8)
         ]
-        me = bpy.data.meshes.new('{0}wedge'.format(self.object.name))
-        self.wedge = bpy.data.objects.new('{0}wedge'.format(self.object.name), me)
+        me = bpy.data.meshes.new('{0}_wedge'.format(self.object.name))
+        self.wedge = bpy.data.objects.new('{0}_wedge'.format(self.object.name), me)
         self.collection.objects.link(self.wedge)
         me.from_pydata(verts, [], faces)
         me.update()
         self.wedge.location = self.object.location + self.wedge_location
         self.wedge.rotation_euler = self.wedge_frame_rotation
+        self.emboss_objects['wedge'] = bpy.data.objects['{0}_wedge'.format(self.object.name)]
 
     def make_external_edge(self):
-        self.remove_external_object('{0}Plate'.format(self.object.name))
-        self.remove_external_object('{0}FontObject'.format(self.object.name))
+        self.remove_external_object('{0}_Plate'.format(self.object.name))
+        self.remove_external_object('{0}_FontObject'.format(self.object.name))
+        _ = self.emboss_objects.pop('name_plate', None)
+        _ = self.emboss_objects.pop('name_font', None)
         if self.Name_plate:
             plate_Y = self.Name_plate_Y
             text = self.Name_plate_text
@@ -373,14 +378,20 @@ class EmbossPlane(bpy.types.Operator):
             Border_width=self.Border_width,
             Object_name=self.object.name
         )
-        bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}Plate'.format(self.object.name)])
-        bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}FontObject'.format(self.object.name)])
-        self.collection.objects.link(bpy.data.objects['{0}Plate'.format(self.object.name)])
-        self.collection.objects.link(bpy.data.objects['{0}FontObject'.format(self.object.name)])
+        plate_object = bpy.data.objects['{0}_Plate'.format(self.object.name)]
+        font_object = bpy.data.objects['{0}_FontObject'.format(self.object.name)]
+        bpy.context.scene.collection.objects.unlink(plate_object)
+        bpy.context.scene.collection.objects.unlink(font_object)
+        self.collection.objects.link(plate_object)
+        self.collection.objects.link(font_object)
+        self.emboss_objects['name_plate'] = plate_object
+        self.emboss_objects['name_font'] = font_object
 
     def make_internal_name_plate(self):
-        self.remove_external_object('{0}Plate'.format(self.object.name))
-        self.remove_external_object('{0}FontObject'.format(self.object.name))
+        self.remove_external_object('{0}_Plate'.format(self.object.name))
+        self.remove_external_object('{0}_FontObject'.format(self.object.name))
+        _ = self.emboss_objects.pop('name_plate', None)
+        _ = self.emboss_objects.pop('name_font', None)
         # more cursor to the correct location
         bpy.context.scene.cursor.location = self.edge_location + self.object.location
         bpy.context.scene.cursor.rotation_euler = self.edge_rotation
@@ -396,14 +407,22 @@ class EmbossPlane(bpy.types.Operator):
             Border_width=self.Border_width,
             Object_name=self.object.name
         )
-        bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}Plate'.format(self.object.name)])
-        bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}FontObject'.format(self.object.name)])
-        self.collection.objects.link(bpy.data.objects['{0}Plate'.format(self.object.name)])
-        self.collection.objects.link(bpy.data.objects['{0}FontObject'.format(self.object.name)])
+        plate_object = bpy.data.objects['{0}_Plate'.format(self.object.name)]
+        font_object = bpy.data.objects['{0}_FontObject'.format(self.object.name)]
+        bpy.context.scene.collection.objects.unlink(plate_object)
+        bpy.context.scene.collection.objects.unlink(font_object)
+        self.collection.objects.link(plate_object)
+        self.collection.objects.link(font_object)
+        self.emboss_objects['name_plate'] = plate_object
+        self.emboss_objects['name_font'] = font_object
 
     def make_back_frame(self):
-        self.remove_external_object('{0}BackFrameObject'.format(self.object.name))
-        self.remove_external_object('{0}PlateBackFrameObject'.format(self.object.name))
+        back_frame_name = '{0}_BackFrameObject'.format(self.object.name)
+        back_frame_plate_name = '{0}_PlateBackFrameObject'.format(self.object.name)
+        _ = self.emboss_objects.pop('back_frame', None)
+        _ = self.emboss_objects.pop('back_frame_name_plate', None)
+        self.remove_external_object(back_frame_name)
+        self.remove_external_object(back_frame_plate_name)
         if self.External_edge == 'NONE':
             bpy.context.scene.cursor.location = self.frame_1_location
             bpy.context.scene.cursor.rotation_euler = self.wedge_frame_rotation
@@ -413,7 +432,7 @@ class EmbossPlane(bpy.types.Operator):
                 Gap_size=self.Gap_size,
                 Border_width=self.Border_width,
                 Close=True,
-                Object_name='{0}BackFrame'.format(self.object.name)
+                Object_name='{0}_BackFrame'.format(self.object.name)
             )
         else:
             bpy.context.scene.cursor.location = self.frame_1_location
@@ -424,7 +443,7 @@ class EmbossPlane(bpy.types.Operator):
                 Gap_size=self.Gap_size,
                 Border_width=self.Border_width,
                 Close=False,
-                Object_name='{0}BackFrame'.format(self.object.name)
+                Object_name='{0}_BackFrame'.format(self.object.name)
             )
             bpy.context.scene.cursor.location = self.frame_2_location
             bpy.ops.object.back_frame(
@@ -433,12 +452,16 @@ class EmbossPlane(bpy.types.Operator):
                 Gap_size=self.Gap_size,
                 Border_width=self.Border_width,
                 Close=False,
-                Object_name='{0}PlateBackFrame'.format(self.object.name)
+                Object_name='{0}_PlateBackFrame'.format(self.object.name)
             )
-            bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}PlateBackFrameObject'.format(self.object.name)])
-            self.collection.objects.link(bpy.data.objects['{0}PlateBackFrameObject'.format(self.object.name)])
-        bpy.context.scene.collection.objects.unlink(bpy.data.objects['{0}BackFrameObject'.format(self.object.name)])
-        self.collection.objects.link(bpy.data.objects['{0}BackFrameObject'.format(self.object.name)])
+            back_frame_plate_object = bpy.data.objects[back_frame_plate_name]
+            bpy.context.scene.collection.objects.unlink(back_frame_plate_object)
+            self.collection.objects.link(back_frame_plate_object)
+            self.emboss_objects['back_frame_name_plate'] = back_frame_plate_object
+        back_frame_object = bpy.data.objects[back_frame_name]
+        bpy.context.scene.collection.objects.unlink(back_frame_object)
+        self.collection.objects.link(back_frame_object)
+        self.emboss_objects['back_frame'] = back_frame_object
 
     def update_external(self):
         self.External_y = False
@@ -455,17 +478,17 @@ class EmbossPlane(bpy.types.Operator):
             self.External_my = True
 
     def get_weight(
-            self,
-            vert,
-            object_location,
-            lx,
-            ly,
-            Border_width,
-            External_y,
-            External_my,
-            External_x,
-            External_mx
-        ):
+        self,
+        vert,
+        object_location,
+        lx,
+        ly,
+        Border_width,
+        External_y,
+        External_my,
+        External_x,
+        External_mx
+    ):
         # Pass all arguments by value since this is called a
         # large number of times and Blender's self.__getattribute__
         # very slow (saves 50% compute time doing it this way)
@@ -490,12 +513,12 @@ class EmbossPlane(bpy.types.Operator):
             return 1
 
     def flatten_spikes(
-            self,
-            context,
-            Spike_threshold,
-            Spike_reduction_factor,
-            Invert_image
-        ):
+        self,
+        context,
+        Spike_threshold,
+        Spike_reduction_factor,
+        Invert_image
+    ):
         bm = self.get_bm()
         # make copy of mesh with modifiers applies
         depsgraph = context.evaluated_depsgraph_get()
@@ -529,9 +552,12 @@ class EmbossPlane(bpy.types.Operator):
         self.object.data.update()
 
     def execute(self, context):
-        object = context.active_object
-        name = object.name
-        self.object = bpy.data.objects[name]
+        self.emboss_objects = {}
+        self.object = context.active_object
+        name = self.object.name
+        rotation = self.object.rotation_euler.copy()
+        self.object.rotation_euler = Euler((0, 0, 0))
+        # self.object = bpy.data.objects[name]
         if len(self.object.users_collection) > 0:
             self.collection = self.object.users_collection[0]
         else:
@@ -570,13 +596,13 @@ class EmbossPlane(bpy.types.Operator):
                 bpy.ops.mesh.loopcut(
                     override,
                     number_cuts=nx,
-                    object_index=object.pass_index,
+                    object_index=self.object.pass_index,
                     edge_index=0
                 )
                 bpy.ops.mesh.loopcut(
                     override,
                     number_cuts=ny,
-                    object_index=object.pass_index,
+                    object_index=self.object.pass_index,
                     edge_index=1
                 )
                 break
@@ -646,11 +672,17 @@ class EmbossPlane(bpy.types.Operator):
             invert_multiplyer = -1
         tex = bpy.data.textures.keys()
         mod = self.object.modifiers.keys()
-        if 'Displacement' not in tex:
-            iTex = bpy.data.textures.new('Displacement', type='IMAGE')
+        displacement_name = '_'.join(['Displacement', name])
+        if displacement_name not in tex:
+            iTex = bpy.data.textures.new(displacement_name, type='IMAGE')
         else:
-            iTex = bpy.data.textures['Displacement']
-        iTex.image = bpy.data.images[0]  # assume last image loaded is the correct one
+            iTex = bpy.data.textures[displacement_name]
+        image_match = [k for k in bpy.data.images.keys() if name.startswith(os.path.splitext(k)[0])]
+        if len(image_match) > 0:
+            iTex.image = bpy.data.images[image_match[0]]  # assume last image loaded is the correct one
+        else:
+            self.report({'INFO'}, "Can't find image matching object name, defaulting to first image")
+            iTex.image = bpy.data.images[0]
         iTex.filter_size = self.Noise_filter
         if 'bump' not in mod:
             displace = self.object.modifiers.new(name='bump', type='DISPLACE')
@@ -686,18 +718,23 @@ class EmbossPlane(bpy.types.Operator):
             self.make_wedge()
             self.make_external_edge()
         else:
-            self.remove_external_object('wedge')
+            self.remove_external_object('{0}_wedge'.format(self.object.name))
+            _ = self.emboss_objects.pop('wedge', None)
             if self.Name_plate:
                 self.make_internal_name_plate()
             else:
-                self.remove_external_object('{0}Plate'.format(self.object.name))
-                self.remove_external_object('{0}FontObject'.format(self.object.name))
+                self.remove_external_object('{0}_Plate'.format(self.object.name))
+                self.remove_external_object('{0}_FontObject'.format(self.object.name))
+                _ = self.emboss_objects.pop('name_plate', None)
+                _ = self.emboss_objects.pop('name_font', None)
 
         if self.Back_frame:
             self.make_back_frame()
         else:
-            self.remove_external_object('{0}BackFrameObject'.format(self.object.name))
-            self.remove_external_object('{0}PlateBackFrameObject'.format(self.object.name))
+            self.remove_external_object('{0}_BackFrameObject'.format(self.object.name))
+            self.remove_external_object('{0}_PlateBackFrameObject'.format(self.object.name))
+            _ = self.emboss_objects.pop('back_frame', None)
+            _ = self.emboss_objects.pop('back_frame_name_plate', None)
 
         # Smooth surface
         if 'smooth' not in mod:
@@ -706,6 +743,23 @@ class EmbossPlane(bpy.types.Operator):
             subsurf.show_viewport = True
             subsurf.levels = 2
 
+        # Parent objects
+        if 'back_frame' in self.emboss_objects:
+            self.emboss_objects['back_frame'].parent = self.object
+            self.emboss_objects['back_frame'].matrix_parent_inverse = self.object.matrix_world.inverted()
+        if 'wedge' in self.emboss_objects:
+            self.emboss_objects['wedge'].parent = self.object
+            self.emboss_objects['wedge'].matrix_parent_inverse = self.object.matrix_world.inverted()
+        if 'name_plate' in self.emboss_objects:
+            self.emboss_objects['name_plate'].parent = self.object
+            self.emboss_objects['name_plate'].matrix_parent_inverse = self.object.matrix_world.inverted()
+            if 'back_frame_name_plate' in self.emboss_objects:
+                self.emboss_objects['back_frame_name_plate'].parent = self.emboss_objects['name_plate']
+                self.emboss_objects['back_frame_name_plate'].matrix_parent_inverse = self.emboss_objects['name_plate'].matrix_world.inverted()
+            if 'name_font' in self.emboss_objects:
+                self.emboss_objects['name_font'].parent = self.emboss_objects['name_plate']
+                self.emboss_objects['name_font'].matrix_parent_inverse = self.emboss_objects['name_plate'].matrix_world.inverted()
+        self.object.rotation_euler = rotation
         return {'FINISHED'}
 
     @classmethod
