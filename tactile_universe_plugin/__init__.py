@@ -7,7 +7,7 @@ bl_info = {
     'name': 'Tactile Universe',
     'description': 'Various plugins for making Tactile Universe models',
     'author': 'Coleman Krawczyk',
-    'version': (4, 0),
+    'version': (4, 1),
     'blender': (2, 80, 0),
     'location': 'View3D > Menu > Mesh Edit',
     'category': 'Mesh',

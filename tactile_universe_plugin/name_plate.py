@@ -215,10 +215,10 @@ class NamePlate(bpy.types.Operator):
         ))
 
     def execute(self, context):
-        self.name_plate_object_key = '{0}Plate'.format(self.Object_name)
-        self.name_plate_mesh_key = '{0}Mesh'.format(self.Object_name)
-        self.text_cure_key = '{0}FontCurve'.format(self.Object_name)
-        self.text_object_key = '{0}FontObject'.format(self.Object_name)
+        self.name_plate_object_key = '{0}_Plate'.format(self.Object_name)
+        self.name_plate_mesh_key = '{0}_Mesh'.format(self.Object_name)
+        self.text_cure_key = '{0}_FontCurve'.format(self.Object_name)
+        self.text_object_key = '{0}_FontObject'.format(self.Object_name)
         if self.Notches:
             self.make_name_plate_notches()
         else:
