@@ -593,18 +593,17 @@ class EmbossPlane(bpy.types.Operator):
                 'scene': context.scene
             }
             try:
-                bpy.ops.mesh.loopcut(
-                    override,
-                    number_cuts=nx,
-                    object_index=self.object.pass_index,
-                    edge_index=0
-                )
-                bpy.ops.mesh.loopcut(
-                    override,
-                    number_cuts=ny,
-                    object_index=self.object.pass_index,
-                    edge_index=1
-                )
+                with bpy.context.temp_override(**override):
+                    bpy.ops.mesh.loopcut(
+                        number_cuts=nx,
+                        object_index=self.object.pass_index,
+                        edge_index=0
+                    )
+                    bpy.ops.mesh.loopcut(
+                        number_cuts=ny,
+                        object_index=self.object.pass_index,
+                        edge_index=1
+                    )
                 break
             except RuntimeError:
                 continue
