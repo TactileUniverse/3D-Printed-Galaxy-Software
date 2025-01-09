@@ -33,18 +33,18 @@ base_path = os.path.join(
 )
 
 stl_base_file_path = '{0}_base.stl'.format(base_path)
-bpy.ops.export_mesh.stl(
+bpy.ops.wm.stl_export(
     filepath=stl_base_file_path,
     check_existing=False,
-    use_selection=True
+    export_selected_objects=True
 )
 
 bpy.ops.object.select_all(action='INVERT')
 stl_lid_file_path = '{0}_lid.stl'.format(base_path)
-bpy.ops.export_mesh.stl(
+bpy.ops.wm.stl_export(
     filepath=stl_lid_file_path,
     check_existing=False,
-    use_selection=True
+    export_selected_objects=True
 )
 
 bpy.ops.file.pack_all()
