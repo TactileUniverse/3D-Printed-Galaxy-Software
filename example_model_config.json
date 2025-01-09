@@ -20,8 +20,8 @@
     "Name_plate_text_size": 18
   },
   "stl_keywords": {
-    "axis_forward": "Z",
-    "axis_up": "-Y"
+    "forward_axis": "Z",
+    "up_axis": "NEGATIVE_Y"
   },
   "output_path": "/Users/coleman/Desktop",
   "output_name": "M51_i"

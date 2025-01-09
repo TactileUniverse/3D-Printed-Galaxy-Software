@@ -35,7 +35,7 @@ if input_dir == '':
     input_dir = os.getcwd()
 
 # import image as plane
-bpy.ops.import_image.to_plane(
+bpy.ops.image.import_as_mesh_planes(
     files=[{'name': input_name}],
     directory=input_dir,
     height=config['plane_height'],
@@ -71,7 +71,8 @@ override = {
 
 name = bpy.context.active_object.name
 bpy.ops.object.editmode_toggle()
-bpy.ops.object.emboss_plane(override, **config['emboss_plane_keywords'])
+with bpy.context.temp_override(**override):
+    bpy.ops.object.emboss_plane(**config['emboss_plane_keywords'])
 bpy.ops.object.editmode_toggle()
 
 base_path = os.path.join(
@@ -87,7 +88,7 @@ bpy.ops.wm.save_mainfile(
 )
 
 stl_file_path = '{0}.stl'.format(base_path)
-bpy.ops.export_mesh.stl(
+bpy.ops.wm.stl_export(
     filepath=stl_file_path,
     check_existing=False,
     **config['stl_keywords']
