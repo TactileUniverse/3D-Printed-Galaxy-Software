@@ -3,6 +3,7 @@ import bmesh
 import math
 from mathutils import Vector, Matrix
 from bpy.props import FloatProperty, BoolProperty, StringProperty
+from bpy.types import Menu
 
 
 def update_object_mesh(obj, me):
@@ -372,7 +373,6 @@ def register():
         'tu_name_plate_group',
         bpy.props.PointerProperty(type=NamePlatePropertyGroup)
     )
-    bpy.types.VIEW3D_MT_mesh_add.append(add_object_button)
 
 
 def unregister():
@@ -383,8 +383,8 @@ def unregister():
         bpy.types.Object,
         'tu_name_plate_group'
     )
-    bpy.types.VIEW3D_MT_mesh_add.remove(add_object_button)
 
 
 if __name__ == '__main__':
+    bpy.types.VIEW3D_MT_mesh_add.append(add_object_button)
     register()

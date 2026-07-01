@@ -246,7 +246,7 @@ def register():
         'tu_back_frame_group',
         bpy.props.PointerProperty(type=BackFramePropertyGroup)
     )
-    bpy.types.VIEW3D_MT_mesh_add.append(add_object_button)
+    
 
 
 def unregister():
@@ -257,8 +257,8 @@ def unregister():
         bpy.types.Object,
         'tu_back_frame_group'
     )
-    bpy.types.VIEW3D_MT_mesh_add.remove(add_object_button)
 
 
 if __name__ == '__main__':
+    bpy.types.VIEW3D_MT_mesh_add.append(add_object_button)
     register()
