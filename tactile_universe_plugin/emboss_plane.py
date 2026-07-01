@@ -819,6 +819,20 @@ class DefaultEmbossPlane(bpy.types.Operator):
     bl_label = 'Emboss and solidify a plane'
     bl_options = {'REGISTER', 'UNDO'}
 
+    @classmethod
+    def poll(cls, context):
+        cond1 = context.active_object is not None
+        cond2 = context.mode == "OBJECT"
+        if cond1 and cond2:
+            obj = context.active_object
+            base_name = obj.name.split('.')[0]
+            image_keys = [k for k in bpy.data.images.keys() if k.startswith(base_name)]
+            cond3 = len(image_keys) > 0
+            cond4 = len(obj.data.vertices) == 4
+            return cond3 and cond4
+        else:
+            return False
+
     def execute(self, context):
         plane = context.active_object
 
@@ -826,33 +840,30 @@ class DefaultEmbossPlane(bpy.types.Operator):
         # use "base name" of the object to look for the texture
         base_name = plane.name.split('.')[0]
         image_keys = [k for k in bpy.data.images.keys() if k.startswith(base_name)]
-        if len(image_keys) > 0:
-            image_key = image_keys[0]
-            image = bpy.data.images[image_key]
-            iTex = bpy.data.textures.new(f'Displacement {plane.name}', type='IMAGE')
-            iTex.image = image
+        image_key = image_keys[0]
+        image = bpy.data.images[image_key]
+        iTex = bpy.data.textures.new(f'Displacement {plane.name}', type='IMAGE')
+        iTex.image = image
 
-            plane.vertex_groups.new(name='emboss')
+        plane.vertex_groups.new(name='emboss')
 
-            # add all modifiers
-            displace = plane.modifiers.new(name='bump', type='DISPLACE')
-            displace.texture = iTex
-            displace.direction = 'Z'
-            displace.vertex_group = 'emboss'
-            displace.texture_coords = 'UV'
-            displace.show_in_editmode = True
-            displace.show_on_cage = True
-            displace.mid_level = 1
+        # add all modifiers
+        displace = plane.modifiers.new(name='bump', type='DISPLACE')
+        displace.texture = iTex
+        displace.direction = 'Z'
+        displace.vertex_group = 'emboss'
+        displace.texture_coords = 'UV'
+        displace.show_in_editmode = True
+        displace.show_on_cage = True
+        displace.mid_level = 1
 
-            subsurf = plane.modifiers.new(name='smooth', type='SUBSURF')
-            subsurf.quality = 1
-            subsurf.show_viewport = True
-            subsurf.levels = 2
+        subsurf = plane.modifiers.new(name='smooth', type='SUBSURF')
+        subsurf.quality = 1
+        subsurf.show_viewport = True
+        subsurf.levels = 2
 
-            plane.tu_emboss_plane_group.texture_name = iTex.name
-            plane.tu_emboss_plane_group.is_emboss_plane = True
-        else:
-            self.report({'WARNING'}, f'No images found matching the base name of the object {base_name}.')
+        plane.tu_emboss_plane_group.texture_name = iTex.name
+        plane.tu_emboss_plane_group.is_emboss_plane = True
         return {'FINISHED'}
 
 

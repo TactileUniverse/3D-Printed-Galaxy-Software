@@ -17,7 +17,6 @@ bl_info = {
 }
 
 
-
 class VIEW3D_MT_add_tu(Menu):
     bl_idname = "VIEW3D_MT_add_tu"
     bl_label = "Tactile Universe"
@@ -47,7 +46,6 @@ def add_menu_items(self, context):
     layout.separator()
     layout.operator_context = "INVOKE_REGION_WIN"
     layout.menu(VIEW3D_MT_add_tu.bl_idname)
-
 
 
 def register():
