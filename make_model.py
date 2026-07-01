@@ -1,9 +1,9 @@
 import bpy
-import bmesh
 import json
 import sys
 import os
 
+# argument checking
 argv = sys.argv
 if '--' not in argv:
     raise ValueError('You must pass a configuration file on the command line after ` -- `')
@@ -42,44 +42,24 @@ bpy.ops.image.import_as_mesh_planes(
     relative=False
 )
 
+# there is only one object, select it
+plane = bpy.data.objects[0]
+plane.select_set(True)
+bpy.context.view_layer.objects.active = plane
 
-def view3d_find(return_area=False):
-    # returns first 3d view, normally we get from context
-    for area in bpy.context.window.screen.areas:
-        if area.type == 'VIEW_3D':
-            v3d = area.spaces[0]
-            rv3d = v3d.region_3d
-            for region in area.regions:
-                if region.type == 'WINDOW':
-                    if return_area:
-                        return region, rv3d, v3d, area
-                    return region, rv3d, v3d
-    return None, None
+# emboss plane
+bpy.ops.object.tu_emboss_plane()
 
-
-region, rv3d, v3d, area = view3d_find(True)
-override = {
-    'scene': bpy.context.scene,
-    'screen': bpy.context.screen,
-    'active_object': bpy.context.active_object,
-    'window': bpy.context.window,
-    'blend_data': bpy.context.blend_data,
-    'region': region,
-    'area': area,
-    'space': v3d
-}
-
-name = bpy.context.active_object.name
-bpy.ops.object.editmode_toggle()
-with bpy.context.temp_override(**override):
-    bpy.ops.object.emboss_plane(**config['emboss_plane_keywords'])
-bpy.ops.object.editmode_toggle()
+# apply vales from input config file
+for k, v in config['emboss_plane_keywords'].items():
+    setattr(plane.tu_emboss_plane_group, k, v)
 
 base_path = os.path.join(
     config['output_path'],
     config['output_name']
 )
 
+# save the blender file
 bpy.ops.file.pack_all()
 blend_file_path = '{0}.blend'.format(base_path)
 bpy.ops.wm.save_mainfile(
@@ -87,6 +67,7 @@ bpy.ops.wm.save_mainfile(
     check_existing=False
 )
 
+# export as stl
 stl_file_path = '{0}.stl'.format(base_path)
 bpy.ops.wm.stl_export(
     filepath=stl_file_path,
