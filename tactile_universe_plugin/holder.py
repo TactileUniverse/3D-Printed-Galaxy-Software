@@ -355,16 +355,17 @@ class DefaultHolder(bpy.types.Operator):
         # make new collection for holder
         # make new collection for lid
 
-        holder_collection = bpy.data.collections.new('Holder')
+        holder_collection = bpy.data.collections.new('Holder parts')
         context.scene.collection.children.link(holder_collection)
 
-        lid_collection = bpy.data.collections.new('Lid')
+        lid_collection = bpy.data.collections.new('Lid parts')
         context.scene.collection.children.link(lid_collection)
 
         holder = default_object('Holder')
         holder.matrix_world = context.scene.cursor.matrix
-        holder_collection.objects.link(holder)
+        context.scene.collection.objects.link(holder)
         context.view_layer.objects.active = holder
+        holder.select_set(True)
         # add bool union for new collection
         holder.modifiers.new(type='BOOLEAN', name='holder union')
         holder.modifiers['holder union'].operand_type = 'COLLECTION'
@@ -373,7 +374,7 @@ class DefaultHolder(bpy.types.Operator):
 
         lid = default_object('Lid')
         # lid.matrix_world = context.scene.cursor.matrix
-        lid_collection.objects.link(lid)
+        context.scene.collection.objects.link(lid)
         lid.parent = holder
         lid.modifiers.new(type='BOOLEAN', name='lid union')
         lid.modifiers['lid union'].operand_type = 'COLLECTION'
