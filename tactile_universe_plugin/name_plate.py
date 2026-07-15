@@ -309,9 +309,11 @@ class NamePlatePanel(bpy.types.Panel):
         row.label(text='Notches')
         row.prop(obj.tu_name_plate_group, 'Notches')
         row = layout.row()
+        row.enabled = obj.tu_name_plate_group.Notches
         row.label(text='Base height')
         row.prop(obj.tu_name_plate_group, 'Base_height')
         row = layout.row()
+        row.enabled = obj.tu_name_plate_group.Notches
         row.label(text='Border width')
         row.prop(obj.tu_name_plate_group, 'Border_width')
 
