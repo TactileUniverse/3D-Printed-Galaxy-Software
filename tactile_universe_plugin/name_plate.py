@@ -275,10 +275,16 @@ class NamePlatePanel(bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
+        def is_child():
+            if context.active_object.parent is not None:
+                return not context.active_object.parent.tu_emboss_plane_group.is_emboss_plane
+            else:
+                return True
         def _tests():
             yield context.active_object is not None
             yield context.active_object.tu_name_plate_group.is_name_plate
             yield context.mode == "OBJECT"
+            yield is_child()
         return all(_tests())
 
     def draw(self, context):
