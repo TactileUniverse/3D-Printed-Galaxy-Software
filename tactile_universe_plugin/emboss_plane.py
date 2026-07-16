@@ -1,56 +1,627 @@
 import bpy
 import bmesh
 import math
-import os
-from mathutils import Vector, Euler
-from bpy.props import FloatProperty, EnumProperty, BoolProperty, StringProperty
+import numpy as np
+from mathutils import Vector, Euler, Matrix
+from bpy.props import (
+    FloatProperty,
+    EnumProperty,
+    BoolProperty,
+    StringProperty,
+    FloatVectorProperty
+)
 
 
-class EmbossPlane(bpy.types.Operator):
-    '''TU Emboss Plane'''
+def build_emboss(props, context):
+    if props.editing:
+        return None
 
-    bl_idname = 'object.emboss_plane'
-    bl_label = 'Emboss and solidify a plane'
-    bl_options = {'REGISTER', 'UNDO'}
+    props.editing = True
 
+    # update modifier values
+
+    plane = props.id_data
+    lx, ly, _ = plane.dimensions
+    B = lx * ly * props.Fpu**2
+    A = ly / lx
+
+    ny = round(math.sqrt(A * B))
+    nx = round(math.sqrt(B / A))
+
+    old_me = plane.data
+    me_name = old_me.name
+    # use a copy so materials and vertex groups carry over
+    me = old_me.copy()
+
+    # make new regular grid mesh with the correct FPU
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    # empty copy
+    for v in bm.verts:
+        bm.verts.remove(v)
+    # ensure a uv layer exists before create_grid
+    bm.loops.layers.uv.new(me_name)
+    bmesh.ops.create_grid(
+        bm,
+        x_segments=nx,
+        y_segments=ny,
+        size=lx / 2,
+        matrix=Matrix.Scale(A, 4, Vector((0, 1, 0))),
+        calc_uvs=True
+    )
+    bm.verts.ensure_lookup_table()
+
+    # get weights for vertex group
+    # bm.to_mesh(me)
+    # verts_np = np.empty(len(me.vertices) * 3)
+    # me.vertices.foreach_get('co', verts_np)
+    # verts_np = verts_np.reshape(-1, 3)
+    verts_np = np.array([v.co for v in bm.verts])
+
+    # find corners
+    cond1 = (verts_np[:, 0] == verts_np[:, 0].min()) & (verts_np[:, 1] == verts_np[:, 1].min())
+    cond2 = (verts_np[:, 0] == verts_np[:, 0].min()) & (verts_np[:, 1] == verts_np[:, 1].max())
+    cond3 = (verts_np[:, 0] == verts_np[:, 0].max()) & (verts_np[:, 1] == verts_np[:, 1].min())
+    cond4 = (verts_np[:, 0] == verts_np[:, 0].max()) & (verts_np[:, 1] == verts_np[:, 1].max())
+    verts_corner = np.nonzero(cond1 | cond2 | cond3 | cond4)[0]
+
+    # find verts to be embossed
+    x_high = 0.5 * lx - props.Border_width
+    x_low = props.Border_width - 0.5 * lx
+    y_high = 0.5 * ly - props.Border_width
+    y_low = props.Border_width - 0.5 * ly
+
+    cond1 = (props.External_edge != 'RIGHT') & (verts_np[:, 0] > x_high)
+    cond2 = (props.External_edge != 'LEFT') & (verts_np[:, 0] < x_low)
+    cond3 = (props.External_edge != 'TOP') & (verts_np[:, 1] > y_high)
+    cond4 = (props.External_edge != 'BOTTOM') & (verts_np[:, 1] < y_low)
+
+    weights = ~(cond1 | cond2 | cond3 | cond4)
+
+    # set vertex group weights
+    bm.verts.layers.deform.verify()
+    deform = bm.verts.layers.deform.active
+    for w, v in zip(weights, bm.verts):
+        v[deform][0] = w
+
+    # set crease on corner and outside edges
+    bm.edges.layers.float.verify()
+    bm.edges.ensure_lookup_table()
+    crease_layer = bm.edges.layers.float.get("crease_edge")
+    if not crease_layer:
+        crease_layer = bm.edges.layers.float.new("crease_edge")
+
+    bound_edges = [e for e in bm.edges if e.is_boundary]
+    for e in bound_edges:
+        e[crease_layer] = 1
+
+    bm.verts.layers.float.verify()
+    bm.verts.ensure_lookup_table()
+    crease_layer_v = bm.verts.layers.float.get("crease_vert")
+    if not crease_layer_v:
+        crease_layer_v = bm.verts.layers.float.new("crease_vert")
+
+    for vdx in verts_corner:
+        bm.verts[vdx][crease_layer_v] = 1
+
+    # extrude to make solid object
+    r = bmesh.ops.extrude_face_region(bm, geom=bm.faces[:] + bound_edges)
+    verts_extrude = [e for e in r['geom'] if isinstance(e, bmesh.types.BMVert)]
+    bmesh.ops.translate(
+        bm,
+        vec=Vector((0, 0, -props.Base_height - props.Emboss_height)),
+        verts=verts_extrude
+    )
+
+    # set vertex group weights for new extruded verts
+    bm.verts.ensure_lookup_table()
+    bm.verts.layers.deform.verify()
+    deform = bm.verts.layers.deform.active
+    for v in verts_extrude:
+        bm.verts[v.index][deform][0] = 0
+
+    # update normals
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+    # associate mesh with object
+    bm.to_mesh(me)
+    plane.data = me
+    bpy.data.meshes.remove(old_me)
+    plane.data.rename(me_name)
+
+    # set modifier values
+    if not props.Invert_image:
+        plane.modifiers["bump"].strength = props.Emboss_height
+        plane.modifiers["bump"].mid_level = 1
+    else:
+        plane.modifiers["bump"].strength = -props.Emboss_height
+        plane.modifiers["bump"].mid_level = -1
+
+    # external edge/nameplate and wedges and back frame
+    update_external_edge(props, context)
+
+    props.editing = False
+    return None
+
+
+def clean_up_meshes(me_name):
+    # I can't figure out where the orphaned mesh
+    # comes from, so just loop over all meshes and
+    # remove old ones that are no liked to objects
+    for me in bpy.data.meshes:
+        if (me.users == 0) and (me.name.startswith(me_name)):
+            bpy.data.meshes.remove(me)
+
+
+def flatten_spikes(props, context):
+    plane = props.id_data
+
+    old_me = plane.data
+    me_name = old_me.name
+    # use a copy so materials and vertex groups carry over
+    me = old_me.copy()
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.verts.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+
+    bm.verts.layers.deform.verify()
+    deform = bm.verts.layers.deform.active
+    verts_emboss = [v.index for v in bm.verts if v[deform][0] == 1]
+
+    # reset to zero before starting
+    for vdx in verts_emboss:
+        bm.verts[vdx].co.z = 0
+
+    bm.to_mesh(me)
+    plane.data = me
+
+    if props.Spike_removal:
+        if 'smooth' in plane.modifiers:
+            plane.modifiers.remove(plane.modifiers['smooth'])
+
+        depsgraph = context.evaluated_depsgraph_get()
+        object_mod = plane.evaluated_get(depsgraph)
+        bm_mod = bmesh.new()
+        bm_mod.from_mesh(bpy.data.meshes.new_from_object(object_mod))
+        bm_mod.verts.ensure_lookup_table()
+
+        for vdx in verts_emboss:
+            # move the verts on the un-applied mesh
+            v = bm.verts[vdx]
+            # check for spikes on the applied mesh
+            z = bm_mod.verts[vdx].co.z
+            other_z_dif = 0
+            other_z_count = 0
+            spike = True
+            for e in v.link_edges:
+                other_z = bm_mod.verts[ e.other_vert(v).index].co.z
+                if abs(z - other_z) < props.Spike_threshold:
+                    spike = False
+                else:
+                    other_z_dif += abs(z - other_z)
+                    other_z_count += 1
+            if spike:
+                average_dif = other_z_dif / other_z_count
+                if props.Invert_image:
+                    v.co.z += props.Spike_reduction_factor * average_dif
+                else:
+                    v.co.z -= props.Spike_reduction_factor * average_dif
+
+        subsurf = plane.modifiers.new(name='smooth', type='SUBSURF')
+        subsurf.quality = 1
+        subsurf.show_viewport = True
+        subsurf.levels = 2
+
+    bm.to_mesh(me)
+    plane.data = me
+    bpy.data.meshes.remove(old_me)
+    plane.data.rename(me_name)
+    clean_up_meshes(me_name)
+    return None
+
+
+def update_filter(props, context):
+    iTex = bpy.data.textures[props.texture_name]
+    iTex.filter_size = props.Noise_filter
+    return None
+
+
+def remove_frame(props, index):
+    if (index == 1) and (props.frame_1_name != ''):
+        frame1 = bpy.data.objects[props.frame_1_name]
+        # remove the mesh to ensure full removal of the object
+        bpy.data.meshes.remove(frame1.data)
+        props.frame_1_name = ''
+    elif (index == 2) and (props.frame_2_name != ''):
+        frame2 = bpy.data.objects[props.frame_2_name]
+        # remove the mesh to ensure full removal of the object
+        bpy.data.meshes.remove(frame2.data)
+        props.frame_2_name = ''
+
+
+def remove_edge(props):
+    if props.edge_name != '':
+        edge = bpy.data.objects[props.edge_name]
+        for child in edge.children:
+            # remove the curve and mesh to ensure full removal of the object
+            if child.type == 'MESH':
+                bpy.data.meshes.remove(child.data)
+            else:
+                bpy.data.curves.remove(child.data)
+        # remove the mesh to ensure full removal of the object
+        bpy.data.meshes.remove(edge.data)
+        props.edge_name = ''
+
+
+def update_back_frame(props, context):
+    plane = props.id_data
+    lx, ly, _ = plane.dimensions
+    update_values(props)
+
+    if props.Back_frame:
+        # if a back frame is needed
+        if props.frame_1_name == '':
+            # if there is not already a back frame
+            # make one, name it, and set parent
+            bpy.ops.object.tu_back_frame()
+            frame1 = context.view_layer.objects.active
+            frame1.name = 'Back frame 1'
+            frame1.parent = plane
+            props.frame_1_name = frame1.name
+            context.view_layer.objects.active = plane
+        else:
+            # if frame already exists grab it
+            frame1 = bpy.data.objects[props.frame_1_name]
+        # set properties
+        frame1.location = props.frame_1_location
+        frame1.rotation_euler = props.wedge_frame_rotation
+        if props.External_edge in ['NONE', 'TOP', 'BOTTOM']:
+            frame1.tu_back_frame_group.Size_x = lx
+            frame1.tu_back_frame_group.Size_y = ly
+        else:
+            frame1.tu_back_frame_group.Size_x = ly
+            frame1.tu_back_frame_group.Size_y = lx
+        frame1.tu_back_frame_group.Gap_size = props.Gap_size
+        frame1.tu_back_frame_group.Border_width = props.Border_width
+        if props.External_edge == 'NONE':
+            remove_frame(props, 2)
+            frame1.tu_back_frame_group.Close = True
+            if props.Name_plate:
+                frame1.tu_back_frame_group.Size_y += props.Name_plate_Y
+        else:
+            frame1.tu_back_frame_group.Close = False
+            # rotate to match edge
+            if props.frame_2_name == '':
+                # make a second frame for the name plate
+                bpy.ops.object.tu_back_frame()
+                frame2 = context.view_layer.objects.active
+                frame2.name = 'Back frame 2'
+                frame2.parent = plane
+                props.frame_2_name = frame2.name
+                context.view_layer.objects.active = plane
+            else:
+                frame2 = bpy.data.objects[props.frame_2_name]
+
+            # set props
+            frame2.location = props.edge_location + props.frame_2_location
+            frame2.rotation_euler = props.wedge_frame_rotation
+            frame2.tu_back_frame_group.Close = False
+            if props.External_edge in ['NONE', 'TOP', 'BOTTOM']:
+                frame2.tu_back_frame_group.Size_x = lx
+            else:
+                frame2.tu_back_frame_group.Size_x = ly
+            frame2.tu_back_frame_group.Size_y = props.plate_Y
+            frame2.tu_back_frame_group.Gap_size = props.Gap_size
+            frame2.tu_back_frame_group.Border_width = props.Border_width
+            if props.edge_name != '':
+                edge = bpy.data.objects[props.edge_name]
+                edge.location = props.edge_location
+    else:
+        # No frame needed
+        remove_frame(props, 1)
+        remove_frame(props, 2)
+    return None
+
+
+def update_values(props):
+    plane = props.id_data
+    lx, ly, _ = plane.dimensions
+
+    total_height = props.Emboss_height + props.Base_height
+
+    if props.Name_plate:
+        props.plate_Y = props.Name_plate_Y
+    else:
+        props.plate_Y = props.Border_width
+
+    props.frame_1_location = Vector((0, 0, -total_height))
+    props.frame_2_location = Vector((0, 0, -0.5 * total_height))
+    if props.External_edge == 'NONE':
+        props.edge_location = Vector((
+            0,
+            (0.5 * ly) + (0.5 * props.Name_plate_Y) - (0.25 * props.Border_width),
+            -0.5 * total_height
+        ))
+        props.edge_rotation = Euler((0, 0, math.radians(180)))
+        props.edge_size_x = lx
+        props.wedge_frame_rotation = Euler((0, 0, 0))
+        if props.Name_plate:
+            props.frame_1_location = Vector((0, 0.5 * props.Name_plate_Y, -total_height))
+    elif props.External_edge == 'TOP':
+        props.wedge_location = Vector((0, 0.5 * ly, -props.Emboss_height))
+        props.wedge_frame_rotation = Euler((0, 0, 0))
+        props.edge_location = Vector((
+            0,
+            0.5 * (props.plate_Y - ly),
+            3 + props.Gap_size + 0.5 * total_height
+        ))
+        props.edge_rotation = Euler((0, 0, 0))
+        props.edge_size_x = lx
+    elif props.External_edge == 'BOTTOM':
+        props.wedge_location = Vector((0, -0.5 * ly, -props.Emboss_height))
+        props.wedge_frame_rotation = Euler((0, 0, math.radians(180)))
+        props.edge_location = Vector((
+            0,
+            0.5 * (ly - props.plate_Y),
+            3 + props.Gap_size + 0.5 * total_height
+        ))
+        props.edge_rotation = Euler((0, 0, math.radians(180)))
+        props.edge_size_x = lx
+    elif props.External_edge == 'RIGHT':
+        props.wedge_location = Vector((0.5 * lx, 0, -props.Emboss_height))
+        props.wedge_frame_rotation = Euler((0, 0, math.radians(-90)))
+        props.edge_location = Vector((
+            0.5 * (props.plate_Y - lx),
+            0,
+            3 + props.Gap_size + 0.5 * total_height
+        ))
+        props.edge_rotation = Euler((0, 0, math.radians(-90)))
+        props.edge_size_x = ly
+    elif props.External_edge == 'LEFT':
+        props.wedge_location = Vector((-0.5 * lx, 0, -props.Emboss_height))
+        props.wedge_frame_rotation = Euler((0, 0, math.radians(90)))
+        props.edge_location = Vector((
+            0.5 * (lx - props.plate_Y),
+            0,
+            3 + props.Gap_size + 0.5 * total_height
+        ))
+        props.edge_rotation = Euler((0, 0, math.radians(90)))
+        props.edge_size_x = ly
+
+
+def update_external_edge(props, context):
+    plane = props.id_data
+    update_back_frame(props, context)
+    if (props.External_edge != 'NONE') or (props.Name_plate):
+        if props.edge_name == '':
+            bpy.ops.object.tu_name_plate()
+            edge = context.view_layer.objects.active
+            edge.name = 'External edge'
+            edge.parent = plane
+            props.edge_name = edge.name
+            context.view_layer.objects.active = plane
+        else:
+            edge = bpy.data.objects[props.edge_name]
+        if props.Name_plate:
+            edge.tu_name_plate_group.Text = props.Name_plate_text
+            edge.tu_name_plate_group.Text_size = props.Name_plate_text_size
+        else:
+            edge.tu_name_plate_group.Text = ''
+        edge.location = props.edge_location
+        edge.rotation_euler = props.edge_rotation
+        edge.tu_name_plate_group.Size_x = props.edge_size_x
+        edge.tu_name_plate_group.Size_z = props.Emboss_height + props.Base_height
+        edge.tu_name_plate_group.Base_height = props.Base_height
+        edge.tu_name_plate_group.Border_width = props.Border_width
+        if props.External_edge == 'NONE':
+            # this is an internal name plate
+            edge.tu_name_plate_group.Size_y = props.plate_Y + (0.5 * props.Border_width)
+            edge.tu_name_plate_group.Notches = False
+        else:
+            # this is an external name plate/edge
+            edge.tu_name_plate_group.Size_y = props.plate_Y
+            edge.tu_name_plate_group.Notches = True
+    else:
+        remove_edge(props)
+    if props.External_edge != 'NONE':
+        make_wedges(props, context)
+    else:
+        remove_wedge(props)
+    return None
+
+
+def make_wedges(props, context):
+    plane = props.id_data
+    shift = 0.25 * props.edge_size_x
+    x = [
+        -2.25,
+        2.25,
+        -1.125,
+        1.125
+    ]
+    y = [
+        (2 * props.Border_width / 3),
+        -props.Border_width
+    ]
+    z = [
+        -0.05,
+        -props.Base_height + 0.05
+    ]
+    verts = [
+        Vector((x[0] + shift, y[0], z[0])),
+        Vector((x[1] + shift, y[0], z[0])),
+        Vector((x[1] + shift, y[1], z[0])),
+        Vector((x[0] + shift, y[1], z[0])),
+
+        Vector((x[2] + shift, y[0], z[1])),
+        Vector((x[3] + shift, y[0], z[1])),
+        Vector((x[3] + shift, y[1], z[1])),
+        Vector((x[2] + shift, y[1], z[1])),
+
+        Vector((x[0] - shift, y[0], z[0])),
+        Vector((x[1] - shift, y[0], z[0])),
+        Vector((x[1] - shift, y[1], z[0])),
+        Vector((x[0] - shift, y[1], z[0])),
+
+        Vector((x[2] - shift, y[0], z[1])),
+        Vector((x[3] - shift, y[0], z[1])),
+        Vector((x[3] - shift, y[1], z[1])),
+        Vector((x[2] - shift, y[1], z[1]))
+    ]
+    faces = [
+        (3, 2, 1, 0),
+        (0, 4, 7, 3),
+        (4, 5, 6, 7),
+        (1, 2, 6, 5),
+        (0, 1, 5, 4),
+        (2, 3, 7, 6),
+
+        (3 + 8, 2 + 8, 1 + 8, 0 + 8),
+        (0 + 8, 4 + 8, 7 + 8, 3 + 8),
+        (4 + 8, 5 + 8, 6 + 8, 7 + 8),
+        (1 + 8, 2 + 8, 6 + 8, 5 + 8),
+        (0 + 8, 1 + 8, 5 + 8, 4 + 8),
+        (2 + 8, 3 + 8, 7 + 8, 6 + 8)
+    ]
+    
+    if props.wedge_name == '':
+        me = bpy.data.meshes.new('Wedges')
+        wedge = bpy.data.objects.new('Wedges', me)
+        wedge.parent = plane
+        wedge.matrix_world = context.scene.cursor.matrix
+        context.collection.objects.link(wedge)
+        props.wedge_name = wedge.name
+        me.from_pydata(verts, [], faces)
+        me.update()
+    else:
+        wedge = bpy.data.objects[props.wedge_name]
+        old_me = wedge.data
+        me_name = old_me.name
+        me = bpy.data.meshes.new(me_name)
+        me.from_pydata(verts, [], faces)
+        me.update()
+        wedge.data = me
+        bpy.data.meshes.remove(old_me)
+        wedge.data.rename(me_name)
+
+    wedge.location = props.wedge_location
+    wedge.rotation_euler = props.wedge_frame_rotation
+    return None
+
+
+def remove_wedge(props):
+    if props.wedge_name != '':
+        wedge = bpy.data.objects[props.wedge_name]
+        # remove the mesh to ensure full removal of the object
+        bpy.data.meshes.remove(wedge.data)
+        props.wedge_name = ''
+
+
+class EmbossPlanePropertyGroup(bpy.types.PropertyGroup):
+    editing: BoolProperty(
+        name="Editing",
+        default=False
+    )
+    is_emboss_plane: BoolProperty(
+        name="Is name plate",
+        default=False,
+        update=build_emboss
+    )
+    texture_name: StringProperty(
+        name='Texture name'
+    )
+    frame_1_name: StringProperty(
+        name='Back frame 1 name',
+        default=''
+    )
+    frame_1_location: FloatVectorProperty(
+        name='Back frame 1 location',
+        subtype='XYZ'
+    )
+    frame_2_name: StringProperty(
+        name='Back frame 2 name',
+        default=''
+    )
+    frame_2_location: FloatVectorProperty(
+        name='Back frame 2 location',
+        subtype='XYZ'
+    )
+    wedge_name: StringProperty(
+        name='Wedge name',
+        default=''
+    )
+    edge_name: StringProperty(
+        name='External edge name',
+        default=''
+    )
+    edge_location: FloatVectorProperty(
+        name='Edge location',
+        subtype='XYZ'
+    )
+    edge_rotation: FloatVectorProperty(
+        name='Edge rotation',
+        subtype='EULER'
+    )
+    edge_size_x: FloatProperty(
+        name='Edge size x'
+    )
+    plate_Y: FloatProperty(
+        name='Plate Y'
+    )
+    wedge_location: FloatVectorProperty(
+        name='Wedge location',
+        subtype='XYZ'
+    )
+    wedge_frame_rotation: FloatVectorProperty(
+        name='Wedge frame rotation',
+        subtype='EULER'
+    )
     Fpu: FloatProperty(
-        name='Faces Per Unit',
+        # name='Faces Per Unit',
+        name='',
         default=2,
         min=0,
-        description='Number of faces per unit length across the top of the plane'
+        description='Number of faces per unit length across the top of the plane',
+        update=build_emboss
     )
     Emboss_height: FloatProperty(
-        name='Emboss Thickness',
+        # name='Emboss Thickness',
+        name='',
         default=3,
         min=0.1,
         unit='LENGTH',
-        description='The emboss height for the model'
+        description='The emboss height for the model',
+        update=build_emboss
     )
     Invert_image: BoolProperty(
-        name='Invert Image',
+        # name='Invert Image',
+        name='',
         default=False,
-        description='Invert the emboss direction'
+        description='Invert the emboss direction',
+        update=build_emboss
     )
     Base_height: FloatProperty(
-        name='Base Thickness',
+        # name='Base Thickness',
+        name='',
         default=3,
         min=0.1,
         unit='LENGTH',
-        description="Thickness of the model's base"
+        description="Thickness of the model's base",
+        update=build_emboss
     )
     Border_width: FloatProperty(
-        name='Border Width',
+        # name='Border Width',
+        name='',
         default=3,
         min=0.1,
         unit='LENGTH',
-        description='Width of the border'
+        description='Width of the border',
+        update=build_emboss
     )
-    External_y = False
-    External_my = False
-    External_x = False
-    External_mx = False
     External_edge: EnumProperty(
-        name='External Edge',
+        # name='External Edge',
+        name='',
         description='Select what edge should be made external (if any)',
         default='NONE',
         items=[
@@ -59,730 +630,272 @@ class EmbossPlane(bpy.types.Operator):
             ('LEFT', 'left', ''),
             ('TOP', 'top', ''),
             ('BOTTOM', 'bottom', '')
-        ]
+        ],
+        update=build_emboss
     )
     Back_frame: BoolProperty(
-        name='Back Frame',
+        # name='Back Frame',
+        name='',
         default=True,
-        description='Add a back frame to the model'
+        description='Add a back frame to the model',
+        update=update_back_frame
     )
     Gap_size: FloatProperty(
-        name='Back Frame Gap Size',
+        # name='Back Frame Gap Size',
+        name='',
         default=1,
         min=0,
         unit='LENGTH',
-        description='Size of the gap between the back frame and model'
+        description='Size of the gap between the back frame and model',
+        update=update_back_frame
     )
     Noise_filter: FloatProperty(
-        name='Noise Filter Size',
+        # name='Noise Filter Size',
+        name='',
         default=1,
         min=1,
-        description='Smooth out noise in the image'
+        description='Smooth out noise in the image',
+        update=update_filter
     )
     Spike_removal: BoolProperty(
-        name='Spike Removal',
+        # name='Spike Removal',
+        name='',
         default=False,
-        description='Remove sharp spikes from the model'
+        description='Remove sharp spikes from the model',
+        update=flatten_spikes
     )
     Spike_threshold: FloatProperty(
-        name='Spike Threshold',
+        # name='Spike Threshold',
+        name='',
         default=0.75,
         min=0,
         unit='LENGTH',
-        description='A single vertex that has a hight difference of at least this threshold from all of its neighbors is flagged as a spike'
+        description='A single vertex that has a hight difference of at least this threshold from all of its neighbors is flagged as a spike',
+        update=flatten_spikes
     )
     Spike_reduction_factor: FloatProperty(
-        name='Spike Reduction Factor',
+        # name='Spike Reduction Factor',
+        name='',
         default=0.75,
         min=0,
-        description='Identified spikes will have their hight lowered by this fraction'
+        description='Identified spikes will have their hight lowered by this fraction',
+        update=flatten_spikes
     )
     Name_plate: BoolProperty(
-        name='Make Name Plate',
+        # name='Make Name Plate',
+        name='',
         default=False,
-        description='Make a name plate for the model'
+        description='Make a name plate for the model',
+        update=build_emboss
     )
     Name_plate_Y: FloatProperty(
-        name='Name Plate Height',
+        # name='Name Plate Height',
+        name='',
         default=20,
         min=0,
         unit='LENGTH',
-        description='The height of the name plate'
+        description='The height of the name plate',
+        update=update_external_edge
     )
     Name_plate_text: StringProperty(
-        name='Name Plate Text',
+        # name='Name Plate Text',
+        name='',
         default='Example',
-        description='Text for the name plate'
+        description='Text for the name plate',
+        update=update_external_edge
     )
     Name_plate_text_size: FloatProperty(
-        name='Name Plate Text Size',
+        # name='Name Plate Text Size',
+        name='',
         default=18,
         min=0,
-        description='Font size of the text'
+        description='Font size of the text',
+        update=update_external_edge
     )
+
+
+class EmbossPlanePanel(bpy.types.Panel):
+    bl_label = "TU Emboss Plane Properties"
+    bl_idname = "OBJECT_PT_edit_emboss_plane"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "object"
+
+    @classmethod
+    def poll(cls, context):
+        def _tests():
+            yield context.active_object is not None
+            yield context.active_object.tu_emboss_plane_group.is_emboss_plane
+            yield context.mode == "OBJECT"
+        return all(_tests())
 
     def draw(self, context):
         layout = self.layout
+        obj = context.active_object
         box1 = layout.box()
         box1.label(text='Emboss Properties')
 
         row = box1.row()
         row.label(text='Faces Per Unit')
-        row.prop(self, 'Fpu', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Fpu')
 
         row = box1.row()
         row.label(text='Emboss Thickness')
-        row.prop(self, 'Emboss_height', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Emboss_height')
 
         row = box1.row()
         row.label(text='Invert Image')
-        row.prop(self, 'Invert_image', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Invert_image')
 
         row = box1.row()
         row.label(text='Base Thickness')
-        row.prop(self, 'Base_height', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Base_height')
 
         row = box1.row()
         row.label(text='Border Width')
-        row.prop(self, 'Border_width', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Border_width')
 
         row = box1.row()
         row.label(text='External Edge')
-        row.prop(self, 'External_edge', text='')
+        row.prop(obj.tu_emboss_plane_group, 'External_edge')
 
         row = box1.row()
         row.label(text='Back Frame')
-        row.prop(self, 'Back_frame', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Back_frame')
 
         row = box1.row()
-        row.enabled = self.Back_frame
+        row.enabled = obj.tu_emboss_plane_group.Back_frame
         row.label(text='Back Frame Gap Size')
-        row.prop(self, 'Gap_size', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Gap_size')
 
         box2 = layout.box()
         box2.label(text='Filter Properties')
 
         row = box2.row()
         row.label(text='Noise Filter Size')
-        row.prop(self, 'Noise_filter', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Noise_filter')
 
         row = box2.row()
         row.label(text='Spike Removal')
-        row.prop(self, 'Spike_removal', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Spike_removal')
 
         row = box2.row()
-        row.enabled = self.Spike_removal
+        row.enabled = obj.tu_emboss_plane_group.Spike_removal
         row.label(text='Spike Threshold')
-        row.prop(self, 'Spike_threshold', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Spike_threshold')
 
         row = box2.row()
-        row.enabled = self.Spike_removal
+        row.enabled = obj.tu_emboss_plane_group.Spike_removal
         row.label(text='Spike Reduction Factor')
-        row.prop(self, 'Spike_reduction_factor', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Spike_reduction_factor')
 
         box3 = layout.box()
         box3.label(text='Name Plate Properties')
 
         row = box3.row()
         row.label(text='Make Name Plate')
-        row.prop(self, 'Name_plate', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Name_plate')
 
         row = box3.row()
-        row.enabled = self.Name_plate
+        row.enabled = obj.tu_emboss_plane_group.Name_plate
         row.label(text='Name Plate Height')
-        row.prop(self, 'Name_plate_Y', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Name_plate_Y')
 
         row = box3.row()
-        row.enabled = self.Name_plate
+        row.enabled = obj.tu_emboss_plane_group.Name_plate
         row.label(text='Name Plate Text')
-        row.prop(self, 'Name_plate_text', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Name_plate_text')
 
         row = box3.row()
-        row.enabled = self.Name_plate
+        row.enabled = obj.tu_emboss_plane_group.Name_plate
         row.label(text='Name Plate Text Size')
-        row.prop(self, 'Name_plate_text_size', text='')
+        row.prop(obj.tu_emboss_plane_group, 'Name_plate_text_size')
 
-    def get_bm(self):
-        bm = bmesh.from_edit_mesh(self.object.data)
-        if hasattr(bm.verts, 'ensure_lookup_table'):
-            bm.verts.ensure_lookup_table()
-            bm.edges.ensure_lookup_table()
-            bm.faces.ensure_lookup_table()
-        return bm
 
-    def remove_external_object(self, name):
-        if name in bpy.data.objects.keys():
-            bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+class DefaultEmbossPlane(bpy.types.Operator):
+    '''TU Emboss Plane'''
 
-    def get_loc_rot(self):
-        if self.Name_plate:
-            self.plate_Y = self.Name_plate_Y
-            self.size_Y = self.ly + self.Name_plate_Y
-        else:
-            self.plate_Y = self.Border_width
-            self.size_Y = self.ly
-        if self.External_edge == 'NONE':
-            self.edge_location = Vector((
-                0,
-                (0.5 * self.ly) + (0.5 * self.Name_plate_Y) - (0.25 * self.Border_width),
-                -0.5 * (self.Emboss_height + self.Base_height)
-            ))
-            self.edge_rotation = Euler((0, 0, 0))
-            self.edge_size_x = self.lx
-            self.frame_1_location = Vector((
-                self.object.location[0],
-                self.object.location[1],
-                -self.Emboss_height - self.Base_height
-            ))
-            self.wedge_frame_rotation = Euler((0, 0, 0))
-            if self.Name_plate:
-                self.frame_1_location[1] += 0.5 * self.Name_plate_Y
-        else:
-            if self.External_edge == 'TOP':
-                self.wedge_location = Vector((0, 0.5 * self.ly, -self.Emboss_height))
-                self.wedge_frame_rotation = Euler((0, 0, 0))
-                self.edge_location = Vector((
-                    0,
-                    0.5 * (self.plate_Y - self.ly),
-                    3 + self.Gap_size + 0.5 * (self.Emboss_height + self.Base_height)
-                ))
-                self.edge_rotation = Euler((0, 0, math.radians(180)))
-                self.edge_size_x = self.lx
-            elif self.External_edge == 'BOTTOM':
-                self.wedge_location = Vector((0, -0.5 * self.ly, -self.Emboss_height))
-                self.wedge_frame_rotation = Euler((0, 0, math.radians(180)))
-                self.edge_location = Vector((
-                    0,
-                    0.5 * (self.ly - self.plate_Y),
-                    3 + self.Gap_size + 0.5 * (self.Emboss_height + self.Base_height)
-                ))
-                self.edge_rotation = Euler((0, 0, 0))
-                self.edge_size_x = self.lx
-            elif self.External_edge == 'RIGHT':
-                self.wedge_location = Vector((0.5 * self.lx, 0, -self.Emboss_height))
-                self.wedge_frame_rotation = Euler((0, 0, math.radians(-90)))
-                self.edge_location = Vector((
-                    0.5 * (self.plate_Y - self.lx),
-                    0,
-                    3 + self.Gap_size + 0.5 * (self.Emboss_height + self.Base_height)
-                ))
-                self.edge_rotation = Euler((0, 0, math.radians(90)))
-                self.edge_size_x = self.ly
-            elif self.External_edge == 'LEFT':
-                self.wedge_location = Vector((-0.5 * self.lx, 0, -self.Emboss_height))
-                self.wedge_frame_rotation = Euler((0, 0, math.radians(90)))
-                self.edge_location = Vector((
-                    0.5 * (self.lx - self.plate_Y),
-                    0,
-                    3 + self.Gap_size + 0.5 * (self.Emboss_height + self.Base_height)
-                ))
-                self.edge_rotation = Euler((0, 0, math.radians(-90)))
-                self.edge_size_x = self.ly
-            self.frame_1_location = Vector((
-                self.object.location[0],
-                self.object.location[1],
-                -self.Emboss_height - self.Base_height
-            ))
-            self.frame_2_location = self.edge_location + Vector((
-                self.object.location[0],
-                self.object.location[1],
-                -0.5 * (self.Emboss_height + self.Base_height)
-            ))
-
-    def make_wedge(self):
-        self.remove_external_object('{0}_wedge'.format(self.object.name))
-        _ = self.emboss_objects.pop('wedge', None)
-        shift = 0.25 * self.edge_size_x
-        x = [
-            -2.25,
-            2.25,
-            -1.125,
-            1.125
-        ]
-        y = [
-            (2 * self.Border_width / 3),
-            -self.Border_width
-        ]
-        z = [
-            -0.05,
-            -self.Base_height + 0.05
-        ]
-        verts = [
-            Vector((x[0] + shift, y[0], z[0])),
-            Vector((x[1] + shift, y[0], z[0])),
-            Vector((x[1] + shift, y[1], z[0])),
-            Vector((x[0] + shift, y[1], z[0])),
-
-            Vector((x[2] + shift, y[0], z[1])),
-            Vector((x[3] + shift, y[0], z[1])),
-            Vector((x[3] + shift, y[1], z[1])),
-            Vector((x[2] + shift, y[1], z[1])),
-
-            Vector((x[0] - shift, y[0], z[0])),
-            Vector((x[1] - shift, y[0], z[0])),
-            Vector((x[1] - shift, y[1], z[0])),
-            Vector((x[0] - shift, y[1], z[0])),
-
-            Vector((x[2] - shift, y[0], z[1])),
-            Vector((x[3] - shift, y[0], z[1])),
-            Vector((x[3] - shift, y[1], z[1])),
-            Vector((x[2] - shift, y[1], z[1]))
-        ]
-        faces = [
-            (3, 2, 1, 0),
-            (0, 4, 7, 3),
-            (4, 5, 6, 7),
-            (1, 2, 6, 5),
-            (0, 1, 5, 4),
-            (2, 3, 7, 6),
-
-            (3 + 8, 2 + 8, 1 + 8, 0 + 8),
-            (0 + 8, 4 + 8, 7 + 8, 3 + 8),
-            (4 + 8, 5 + 8, 6 + 8, 7 + 8),
-            (1 + 8, 2 + 8, 6 + 8, 5 + 8),
-            (0 + 8, 1 + 8, 5 + 8, 4 + 8),
-            (2 + 8, 3 + 8, 7 + 8, 6 + 8)
-        ]
-        me = bpy.data.meshes.new('{0}_wedge'.format(self.object.name))
-        self.wedge = bpy.data.objects.new('{0}_wedge'.format(self.object.name), me)
-        self.collection.objects.link(self.wedge)
-        me.from_pydata(verts, [], faces)
-        me.update()
-        self.wedge.location = self.object.location + self.wedge_location
-        self.wedge.rotation_euler = self.wedge_frame_rotation
-        self.emboss_objects['wedge'] = bpy.data.objects['{0}_wedge'.format(self.object.name)]
-
-    def make_external_edge(self):
-        self.remove_external_object('{0}_Plate'.format(self.object.name))
-        self.remove_external_object('{0}_FontObject'.format(self.object.name))
-        _ = self.emboss_objects.pop('name_plate', None)
-        _ = self.emboss_objects.pop('name_font', None)
-        if self.Name_plate:
-            plate_Y = self.Name_plate_Y
-            text = self.Name_plate_text
-        else:
-            plate_Y = self.Border_width
-            text = ''
-        # more cursor to the correct location
-        bpy.context.scene.cursor.location = self.object.location + self.edge_location
-        bpy.context.scene.cursor.rotation_euler = self.edge_rotation
-        # make the name plate with no text
-        bpy.ops.object.name_plate(
-            Size_x=self.edge_size_x,
-            Size_y=plate_Y,
-            Size_z=self.Emboss_height + self.Base_height,
-            Text=text,
-            Text_size=self.Name_plate_text_size,
-            Notches=True,
-            Base_height=self.Base_height,
-            Border_width=self.Border_width,
-            Object_name=self.object.name
-        )
-        plate_object = bpy.data.objects['{0}_Plate'.format(self.object.name)]
-        font_object = bpy.data.objects['{0}_FontObject'.format(self.object.name)]
-        bpy.context.scene.collection.objects.unlink(plate_object)
-        bpy.context.scene.collection.objects.unlink(font_object)
-        self.collection.objects.link(plate_object)
-        self.collection.objects.link(font_object)
-        self.emboss_objects['name_plate'] = plate_object
-        self.emboss_objects['name_font'] = font_object
-
-    def make_internal_name_plate(self):
-        self.remove_external_object('{0}_Plate'.format(self.object.name))
-        self.remove_external_object('{0}_FontObject'.format(self.object.name))
-        _ = self.emboss_objects.pop('name_plate', None)
-        _ = self.emboss_objects.pop('name_font', None)
-        # more cursor to the correct location
-        bpy.context.scene.cursor.location = self.edge_location + self.object.location
-        bpy.context.scene.cursor.rotation_euler = self.edge_rotation
-        # make the name plate
-        bpy.ops.object.name_plate(
-            Size_x=self.edge_size_x,
-            Size_y=self.Name_plate_Y + (0.5 * self.Border_width),
-            Size_z=self.Emboss_height + self.Base_height,
-            Text=self.Name_plate_text,
-            Text_size=self.Name_plate_text_size,
-            Notches=False,
-            Base_height=self.Base_height,
-            Border_width=self.Border_width,
-            Object_name=self.object.name
-        )
-        plate_object = bpy.data.objects['{0}_Plate'.format(self.object.name)]
-        font_object = bpy.data.objects['{0}_FontObject'.format(self.object.name)]
-        bpy.context.scene.collection.objects.unlink(plate_object)
-        bpy.context.scene.collection.objects.unlink(font_object)
-        self.collection.objects.link(plate_object)
-        self.collection.objects.link(font_object)
-        self.emboss_objects['name_plate'] = plate_object
-        self.emboss_objects['name_font'] = font_object
-
-    def make_back_frame(self):
-        back_frame_name = '{0}_BackFrameObject'.format(self.object.name)
-        back_frame_plate_name = '{0}_PlateBackFrameObject'.format(self.object.name)
-        _ = self.emboss_objects.pop('back_frame', None)
-        _ = self.emboss_objects.pop('back_frame_name_plate', None)
-        self.remove_external_object(back_frame_name)
-        self.remove_external_object(back_frame_plate_name)
-        if self.External_edge == 'NONE':
-            bpy.context.scene.cursor.location = self.frame_1_location
-            bpy.context.scene.cursor.rotation_euler = self.wedge_frame_rotation
-            bpy.ops.object.back_frame(
-                Size_x=self.lx,
-                Size_y=self.size_Y,
-                Gap_size=self.Gap_size,
-                Border_width=self.Border_width,
-                Close=True,
-                Object_name='{0}_BackFrame'.format(self.object.name)
-            )
-        else:
-            bpy.context.scene.cursor.location = self.frame_1_location
-            bpy.context.scene.cursor.rotation_euler = self.wedge_frame_rotation
-            bpy.ops.object.back_frame(
-                Size_x=self.lx,
-                Size_y=self.ly,
-                Gap_size=self.Gap_size,
-                Border_width=self.Border_width,
-                Close=False,
-                Object_name='{0}_BackFrame'.format(self.object.name)
-            )
-            bpy.context.scene.cursor.location = self.frame_2_location
-            bpy.ops.object.back_frame(
-                Size_x=self.lx,
-                Size_y=self.plate_Y,
-                Gap_size=self.Gap_size,
-                Border_width=self.Border_width,
-                Close=False,
-                Object_name='{0}_PlateBackFrame'.format(self.object.name)
-            )
-            back_frame_plate_object = bpy.data.objects[back_frame_plate_name]
-            bpy.context.scene.collection.objects.unlink(back_frame_plate_object)
-            self.collection.objects.link(back_frame_plate_object)
-            self.emboss_objects['back_frame_name_plate'] = back_frame_plate_object
-        back_frame_object = bpy.data.objects[back_frame_name]
-        bpy.context.scene.collection.objects.unlink(back_frame_object)
-        self.collection.objects.link(back_frame_object)
-        self.emboss_objects['back_frame'] = back_frame_object
-
-    def update_external(self):
-        self.External_y = False
-        self.External_my = False
-        self.External_x = False
-        self.External_mx = False
-        if self.External_edge == 'RIGHT':
-            self.External_x = True
-        elif self.External_edge == 'LEFT':
-            self.External_mx = True
-        elif self.External_edge == 'TOP':
-            self.External_y = True
-        elif self.External_edge == 'BOTTOM':
-            self.External_my = True
-
-    def get_weight(
-        self,
-        vert,
-        object_location,
-        lx,
-        ly,
-        Border_width,
-        External_y,
-        External_my,
-        External_x,
-        External_mx
-    ):
-        # Pass all arguments by value since this is called a
-        # large number of times and Blender's self.__getattribute__
-        # very slow (saves 50% compute time doing it this way)
-        x, y, _ = vert.co
-        x0, y0, _ = object_location
-        x = x + x0
-        y = y + y0
-        x2 = x0 + (0.5 * lx)
-        x1 = x2 - Border_width
-        y2 = y0 + (0.5 * ly)
-        y1 = y2 - Border_width
-        xm2 = x0 - (0.5 * lx)
-        xm1 = xm2 + Border_width
-        ym2 = y0 - (0.5 * ly)
-        ym1 = ym2 + Border_width
-        if (not External_y and (y > y1)) or \
-           (not External_my and (y < ym1)) or \
-           (not External_x and (x > x1)) or \
-           (not External_mx and (x < xm1)):
-            return 0
-        else:
-            return 1
-
-    def flatten_spikes(
-        self,
-        context,
-        Spike_threshold,
-        Spike_reduction_factor,
-        Invert_image
-    ):
-        bm = self.get_bm()
-        # make copy of mesh with modifiers applies
-        depsgraph = context.evaluated_depsgraph_get()
-        object_mod = self.object.evaluated_get(depsgraph)
-        bm_mod = bmesh.new()
-        bm_mod.from_mesh(bpy.data.meshes.new_from_object(object_mod))
-        bm_mod.verts.ensure_lookup_table()
-
-        # loop over emboss group looking for spikes
-        for v_index in self.verts_1:
-            v = bm.verts[v_index]
-            z = bm_mod.verts[v_index].co.z
-            other_z_dif = 0
-            other_z_count = 0
-            spike = True
-            for e in v.link_edges:
-                other_z = bm_mod.verts[e.other_vert(v).index].co.z
-                if abs(z - other_z) < Spike_threshold:
-                    spike = False
-                else:
-                    other_z_dif += abs(z - other_z)
-                    other_z_count += 1
-            if spike:
-                # Select the spikes to make them easy to see
-                v.select = True
-                average_dif = other_z_dif / other_z_count
-                if Invert_image:
-                    v.co.z += Spike_reduction_factor * average_dif
-                else:
-                    v.co.z -= Spike_reduction_factor * average_dif
-        self.object.data.update()
-
-    def execute(self, context):
-        self.emboss_objects = {}
-        self.object = context.active_object
-        name = self.object.name
-        rotation = self.object.rotation_euler.copy()
-        self.object.rotation_euler = Euler((0, 0, 0))
-        # self.object = bpy.data.objects[name]
-        if len(self.object.users_collection) > 0:
-            self.collection = self.object.users_collection[0]
-        else:
-            self.collection = bpy.context.scene.collection
-        self.update_external()
-
-        # get object
-        bm = self.get_bm()
-
-        # get length and width
-        self.ly = bm.edges[0].calc_length()
-        self.lx = bm.edges[1].calc_length()
-
-        # get number of cuts to make
-        B = self.lx * self.ly * self.Fpu**2
-        A = self.ly / self.lx
-        nx = round(math.sqrt(A * B)) - 1
-        ny = round(math.sqrt(B / A)) - 1
-        self.report({'INFO'}, '{0} total faces'.format(nx * ny))
-
-        # get location and rotation of all added meshes
-        self.get_loc_rot()
-
-        # make loop cuts
-        areas3D = [area for area in context.window.screen.areas if area.type == 'VIEW_3D']
-        region = [region for region in areas3D[0].regions if region.type == 'WINDOW']
-        for r in region:
-            override = {
-                'window': context.window,
-                'screen': context.window.screen,
-                'area': areas3D[0],
-                'region': r,
-                'scene': context.scene
-            }
-            try:
-                with bpy.context.temp_override(**override):
-                    bpy.ops.mesh.loopcut(
-                        number_cuts=nx,
-                        object_index=self.object.pass_index,
-                        edge_index=0
-                    )
-                    bpy.ops.mesh.loopcut(
-                        number_cuts=ny,
-                        object_index=self.object.pass_index,
-                        edge_index=1
-                    )
-                break
-            except RuntimeError:
-                continue
-
-        bpy.ops.mesh.select_all(action='DESELECT')
-
-        # make vertex groups
-        if 'emboss' not in self.object.vertex_groups.keys():
-            self.object.vertex_groups.new(name='emboss')
-
-        # apply weights
-        weight_args = (
-            self.object.location,
-            self.lx,
-            self.ly,
-            self.Border_width,
-            self.External_y,
-            self.External_my,
-            self.External_x,
-            self.External_mx
-        )
-        bm = self.get_bm()
-        bm.verts.layers.deform.verify()
-        deform = bm.verts.layers.deform.active
-        self.verts_1 = []
-        for v in bm.verts:
-            w = self.get_weight(v, *weight_args)
-            v[deform][0] = w
-            if w == 1:
-                self.verts_1.append(v.index)
-
-        # Extrude down and close bottom
-        extrude_normal = bm.verts[0].normal * -1 * (self.Emboss_height + self.Base_height)
-        bound_edges = [e for e in bm.edges if e.is_boundary]
-        bound_edges_index = [e.index for e in bound_edges]
-        bmesh.ops.extrude_edge_only(bm, edges=bound_edges)
-        bm = self.get_bm()
-        bound_verts = [v for v in bm.verts if v.is_boundary]
-        bound_verts_index = [v.index for v in bound_verts]
-        bound_edges = [e for e in bm.edges if e.is_boundary]
-        bound_edges_index += [e.index for e in bound_edges]
-        bmesh.ops.translate(bm, vec=extrude_normal, verts=bound_verts)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        for e in bound_edges:
-            e.select = True
-        bpy.ops.mesh.fill_grid()
-        bottom_face_verts_index = [v.index for v in bm.verts if v.select]
-        bpy.ops.mesh.select_all(action='DESELECT')
-
-        # set vertex group values
-        bm = self.get_bm()
-        bm.verts.layers.deform.verify()
-        deform = bm.verts.layers.deform.active
-        for v_index in bottom_face_verts_index + bound_verts_index:
-            bm.verts[v_index][deform][0] = 0
-
-        # set crease on boundary
-        for e_index in bound_edges_index:
-            bm.edges[e_index].select = True
-        bpy.ops.transform.edge_crease(value=1)
-
-        # add modifiers
-        invert_multiplyer = 1
-        if self.Invert_image:
-            invert_multiplyer = -1
-        tex = bpy.data.textures.keys()
-        mod = self.object.modifiers.keys()
-        displacement_name = '_'.join(['Displacement', name])
-        if displacement_name not in tex:
-            iTex = bpy.data.textures.new(displacement_name, type='IMAGE')
-        else:
-            iTex = bpy.data.textures[displacement_name]
-        image_match = [k for k in bpy.data.images.keys() if name.startswith(os.path.splitext(k)[0])]
-        if len(image_match) > 0:
-            iTex.image = bpy.data.images[image_match[0]]  # assume last image loaded is the correct one
-        else:
-            self.report({'INFO'}, "Can't find image matching object name, defaulting to first image")
-            iTex.image = bpy.data.images[0]
-        iTex.filter_size = self.Noise_filter
-        if 'bump' not in mod:
-            displace = self.object.modifiers.new(name='bump', type='DISPLACE')
-            displace.texture = iTex
-            displace.direction = 'Z'
-            displace.vertex_group = 'emboss'
-            displace.texture_coords = 'UV'
-            displace.show_in_editmode = True
-            displace.show_on_cage = True
-        else:
-            displace = self.object.modifiers['bump']
-        displace.strength = self.Emboss_height * invert_multiplyer
-        displace.mid_level = 1 * invert_multiplyer
-
-        # Deselect all verts
-        bpy.ops.mesh.select_all(action='DESELECT')
-
-        # Spike removal
-        if self.Spike_removal:
-            # for spike removal temp remove the smoothing modifier
-            if 'smooth' in mod:
-                subsurf = self.object.modifiers['smooth']
-                self.object.modifiers.remove(subsurf)
-            self.flatten_spikes(
-                context,
-                self.Spike_threshold,
-                self.Spike_reduction_factor,
-                self.Invert_image
-            )
-
-        # if external or name plate edge create wedge and edge/name plate
-        if self.External_edge != 'NONE':
-            self.make_wedge()
-            self.make_external_edge()
-        else:
-            self.remove_external_object('{0}_wedge'.format(self.object.name))
-            _ = self.emboss_objects.pop('wedge', None)
-            if self.Name_plate:
-                self.make_internal_name_plate()
-            else:
-                self.remove_external_object('{0}_Plate'.format(self.object.name))
-                self.remove_external_object('{0}_FontObject'.format(self.object.name))
-                _ = self.emboss_objects.pop('name_plate', None)
-                _ = self.emboss_objects.pop('name_font', None)
-
-        if self.Back_frame:
-            self.make_back_frame()
-        else:
-            self.remove_external_object('{0}_BackFrameObject'.format(self.object.name))
-            self.remove_external_object('{0}_PlateBackFrameObject'.format(self.object.name))
-            _ = self.emboss_objects.pop('back_frame', None)
-            _ = self.emboss_objects.pop('back_frame_name_plate', None)
-
-        # Smooth surface
-        if 'smooth' not in mod:
-            subsurf = self.object.modifiers.new(name='smooth', type='SUBSURF')
-            subsurf.quality = 1
-            subsurf.show_viewport = True
-            subsurf.levels = 2
-
-        # Parent objects
-        if 'back_frame' in self.emboss_objects:
-            self.emboss_objects['back_frame'].parent = self.object
-            self.emboss_objects['back_frame'].matrix_parent_inverse = self.object.matrix_world.inverted()
-        if 'wedge' in self.emboss_objects:
-            self.emboss_objects['wedge'].parent = self.object
-            self.emboss_objects['wedge'].matrix_parent_inverse = self.object.matrix_world.inverted()
-        if 'name_plate' in self.emboss_objects:
-            self.emboss_objects['name_plate'].parent = self.object
-            self.emboss_objects['name_plate'].matrix_parent_inverse = self.object.matrix_world.inverted()
-            if 'back_frame_name_plate' in self.emboss_objects:
-                self.emboss_objects['back_frame_name_plate'].parent = self.emboss_objects['name_plate']
-                self.emboss_objects['back_frame_name_plate'].matrix_parent_inverse = self.emboss_objects['name_plate'].matrix_world.inverted()
-            if 'name_font' in self.emboss_objects:
-                self.emboss_objects['name_font'].parent = self.emboss_objects['name_plate']
-                self.emboss_objects['name_font'].matrix_parent_inverse = self.emboss_objects['name_plate'].matrix_world.inverted()
-        self.object.rotation_euler = rotation
-        return {'FINISHED'}
+    bl_idname = 'object.tu_emboss_plane'
+    bl_label = 'Emboss and solidify a plane'
+    bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(cls, context):
-        object = context.active_object
-        sx, sy, sz = object.scale
-        good = sx == sy == sz
-        good = good and object is not None
-        good = good and object.mode == 'EDIT'
-        return good
+        cond1 = context.active_object is not None
+        cond2 = context.mode == "OBJECT"
+        if cond1 and cond2:
+            obj = context.active_object
+            base_name = obj.name.split('.')[0]
+            image_keys = [k for k in bpy.data.images.keys() if k.startswith(base_name)]
+            cond3 = len(image_keys) > 0
+            cond4 = len(obj.data.vertices) == 4
+            return cond3 and cond4
+        else:
+            return False
+
+    def execute(self, context):
+        plane = context.active_object
+
+        # create texture
+        # use "base name" of the object to look for the texture
+        base_name = plane.name.split('.')[0]
+        image_keys = [k for k in bpy.data.images.keys() if k.startswith(base_name)]
+        image_key = image_keys[0]
+        image = bpy.data.images[image_key]
+        iTex = bpy.data.textures.new(f'Displacement {plane.name}', type='IMAGE')
+        iTex.image = image
+
+        plane.vertex_groups.new(name='emboss')
+
+        # add all modifiers
+        displace = plane.modifiers.new(name='bump', type='DISPLACE')
+        displace.texture = iTex
+        displace.direction = 'Z'
+        displace.vertex_group = 'emboss'
+        displace.texture_coords = 'UV'
+        displace.show_in_editmode = True
+        displace.show_on_cage = True
+        displace.mid_level = 1
+
+        subsurf = plane.modifiers.new(name='smooth', type='SUBSURF')
+        subsurf.quality = 1
+        subsurf.show_viewport = True
+        subsurf.levels = 2
+
+        plane.tu_emboss_plane_group.texture_name = iTex.name
+        plane.tu_emboss_plane_group.is_emboss_plane = True
+        return {'FINISHED'}
 
 
 def add_object_button(self, context):
-    self.layout.operator(EmbossPlane.bl_idname, text=EmbossPlane.__doc__)
+    self.layout.operator(
+        DefaultEmbossPlane.bl_idname,
+        text=DefaultEmbossPlane.__doc__,
+        icon='PLUGIN'
+    )
 
 
 def register():
-    bpy.utils.register_class(EmbossPlane)
-    bpy.types.VIEW3D_MT_edit_mesh.append(add_object_button)
+    bpy.utils.register_class(EmbossPlanePanel)
+    bpy.utils.register_class(EmbossPlanePropertyGroup)
+    bpy.utils.register_class(DefaultEmbossPlane)
+    setattr(
+        bpy.types.Object,
+        'tu_emboss_plane_group',
+        bpy.props.PointerProperty(type=EmbossPlanePropertyGroup)
+    )
+    bpy.types.VIEW3D_MT_object.append(add_object_button)
 
 
 def unregister():
-    bpy.utils.unregister_class(EmbossPlane)
-    bpy.types.VIEW3D_MT_edit_mesh.remove(add_object_button)
+    bpy.utils.unregister_class(EmbossPlanePanel)
+    bpy.utils.unregister_class(EmbossPlanePropertyGroup)
+    bpy.utils.unregister_class(DefaultEmbossPlane)
+    delattr(
+        bpy.types.Object,
+        'tu_emboss_plane_group'
+    )
+    bpy.types.VIEW3D_MT_object.remove(add_object_button)
 
 
 if __name__ == '__main__':

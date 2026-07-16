@@ -10,6 +10,9 @@ The software created and used for the Tactile Universe
 ## Tactile Universe plugin
 `tactile_universe_plugin.zip`: A [Blender](https://www.blender.org/) plugin containing all the functions needed to create tactile universe models in blender.
 
+## Blender on the command line
+To learn how to run blender via the command line see the [Blender documentation](https://docs.blender.org/manual/en/dev/advanced/command_line/launch/index.html).
+
 ## Command line install script
 `install_all_addons.py`: A script for installing and activating all of the plugins needed to make Tactile Universe models (useful if the Blender UI is too difficult to use).
 
@@ -21,7 +24,7 @@ blender -b --python install_all_addons.py
 `M51_i.png`: The SDSS i-band image of the galaxy M51. This image can be used for testing out the plugin and command line tools.
 
 ## Make model
-`make_model.py`: A blender script for automating the model making process via the command line.  To learn how to run blender via the command line see the [Blender documentation](https://docs.blender.org/manual/en/dev/render/workflows/command_line.html).  Once set up this script can be used as follows
+`make_model.py`: A blender script for automating the model making process via the command line.
 
 ```bash
 blender TU_startup.blend --python-exit-code 1 --python make_model.py -- example_model_config.json
